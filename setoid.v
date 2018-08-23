@@ -1,61 +1,70 @@
 
-Record Equivalence {A : Type} (eqv: A -> A -> Prop) := {
-  refl: forall a : A, eqv a a;
-  symm: forall a b : A, eqv a b -> eqv b a;
-  tran: forall a b c : A, eqv a b -> eqv b c -> eqv a c;
+Record IsEquivalence {A : Type} (eq: A -> A -> Prop) := {
+  Equivalence_Reflexivity: forall a : A, eq a a;
+  Equivalence_Symmetry: forall a b : A, eq a b -> eq b a;
+  Equivalence_Transitivity: forall a b c : A, eq a b -> eq b c -> eq a c;
 }.
 
 
-Definition PropositionalEqualityIsEquivalence {A: Type}: Equivalence (@eq A).
-apply Build_Equivalence; intuition.
+Definition PropositionalEqualityIsEquivalence {A: Type}: IsEquivalence (@eq A).
+apply Build_IsEquivalence; intuition.
 rewrite H; assumption.
 Defined.
 
 
 Record Setoid := {
-  U : Type;
-  eqv : U -> U -> Prop;
-  eqv_is_equivalence: Equivalence eqv;
+  Setoid_Type : Type;
+  Setoid_Equivalence : Setoid_Type -> Setoid_Type -> Prop;
+  Setoid_IsEquivalence: IsEquivalence Setoid_Equivalence;
 }.
+
+Notation "a ==[ A ] b" := (Setoid_Equivalence A a b) (at level 70, no associativity).
+Notation "| A |" := (Setoid_Type A) (at level 70, no associativity).
+
+Ltac setoid_refl A := apply (Equivalence_Reflexivity (Setoid_Equivalence A) (Setoid_IsEquivalence A)).
+Ltac setoid_symm A := apply (Equivalence_Symmetry (Setoid_Equivalence A) (Setoid_IsEquivalence A)).
+Ltac setoid_tran A e := apply (Equivalence_Transitivity (Setoid_Equivalence A) (Setoid_IsEquivalence A)) with (b := e).
 
 Definition PropSetoidOf (A : Type): Setoid.
 apply (Build_Setoid A (@eq A) PropositionalEqualityIsEquivalence).
 Defined.
 
 
-Notation "a ==[ A ] b" := (A.(eqv) a b) (at level 70, no associativity).
-Notation "| A |" := (A.(U)) (at level 70, no associativity).
-
-
 Record Function (A : Setoid) (B : Setoid) := {
-  underlying_map : A.(U) -> B.(U);
-  map_is_extensional: forall a b : A.(U), A.(eqv) a b -> B.(eqv) (underlying_map a) (underlying_map b);
+  Function_Map : |A| -> |B|;
+  Function_MapIsExtensional: forall a b : |A|, A.(Setoid_Equivalence) a b -> B.(Setoid_Equivalence) (Function_Map a) (Function_Map b);
 }.
 
 
-Definition app {A B : Setoid} (f : Function A B) (x : |A| ) : |B| :=
-  (underlying_map A B f) x.
+Definition FunctionApp {A B : Setoid} (f : Function A B) (x : |A| ) : |B| :=
+  (Function_Map A B f) x.
 
-Notation "f ` a" := (app f a) (at level 69, left associativity).
+Notation "f ` a" := (FunctionApp f a) (at level 69, left associativity).
 
 
-Definition Function_eqv {A B : Setoid} (f g : Function A B) : Prop :=
-  forall a : A.(U), f`a ==[B] g`a.
+Definition FunctionEquivalence {A B : Setoid} (f g : Function A B) : Prop :=
+  forall a : A.(Setoid_Type), f`a ==[B] g`a.
 
-Lemma Function_eqv_is_equivalence {A B : Setoid}: Equivalence (@Function_eqv A B).
-apply Build_Equivalence.
-- intros. unfold Function_eqv. intros.
-  apply (refl (eqv B) (eqv_is_equivalence B)).
-- unfold Function_eqv. intros.
-  apply (symm (eqv B) (eqv_is_equivalence B)). apply H.
-- unfold Function_eqv. intros. specialize (H a0). specialize (H0 a0).
-  apply (tran (eqv B) (eqv_is_equivalence B)) with (b := b ` a0).
+Lemma Function_eqv_is_equivalence {A B : Setoid}: IsEquivalence (@FunctionEquivalence A B).
+apply Build_IsEquivalence.
+- intros. unfold FunctionEquivalence. intros.
+  apply (Equivalence_Reflexivity (Setoid_Equivalence B) (Setoid_IsEquivalence B)).
+- unfold FunctionEquivalence. intros.
+  apply (Equivalence_Symmetry (Setoid_Equivalence B) (Setoid_IsEquivalence B)). apply H.
+- unfold FunctionEquivalence. intros. specialize (H a0). specialize (H0 a0).
+  apply (Equivalence_Transitivity (Setoid_Equivalence B) (Setoid_IsEquivalence B)) with (b := b ` a0).
   assumption. assumption.
 Defined.
 
 
-Definition FunctionSetoid (A: Setoid) (B : Setoid) : Setoid :=
-{| U := Function A B; eqv := Function_eqv; eqv_is_equivalence := Function_eqv_is_equivalence |}.
+Definition FunctionSetoid (A: Setoid) (B : Setoid) : Setoid := {|
+  Setoid_Type := Function A B;
+  Setoid_Equivalence := FunctionEquivalence;
+  Setoid_IsEquivalence := Function_eqv_is_equivalence
+|}.
+
+Notation "A ==> B" := (Function A B) (at level 68, right associativity).
+Notation "B ^^ A" := (FunctionSetoid A B) (at level 67, no associativity).
 
 
 Record Prod (A : Type) (B : Type) := {
@@ -65,25 +74,17 @@ Record Prod (A : Type) (B : Type) := {
 
 
 
-Ltac setoid_refl A := apply (refl (eqv A) (eqv_is_equivalence A)).
-Ltac setoid_symm A := apply (symm (eqv A) (eqv_is_equivalence A)).
-Ltac setoid_tran A e := apply (tran (eqv A) (eqv_is_equivalence A)) with (b := e).
-
 Definition ProdSetoid (A B : Setoid) : Setoid.
 apply (Build_Setoid
         (Prod (|A|) (|B|))
         (fun a b => fst (|A|) (|B|) a ==[A] fst (|A|) (|B|) b /\ 
-                    snd (|A|) (|B|) a ==[B] snd (|A|) (|B|)b)).
-apply Build_Equivalence.
+                    snd (|A|) (|B|) a ==[B] snd (|A|) (|B|) b)).
+apply Build_IsEquivalence.
 - intros. split. setoid_refl A. setoid_refl B.
 - intros. split. setoid_symm A. intuition. setoid_symm B. intuition. 
 - intros. split. setoid_tran A (fst (| A |) (| B |) b). intuition. intuition.
                  setoid_tran B (snd (| A |) (| B |) b). intuition. intuition.
 Defined.
-
-
-Definition mkProd {A B : Setoid} (a : |A|) (b : |B|): |ProdSetoid A B| :=
-  {| fst := a; snd := b |}.
 
 
 Inductive Sum (A : Type) (B : Type) :=
@@ -133,45 +134,42 @@ apply (Build_Setoid
       | inr _ _ y => x ==[B] y
       end
     end)).
-apply Build_Equivalence.
+apply Build_IsEquivalence.
 - intros. destruct a. setoid_refl A. setoid_refl B.
 - intros. destruct a. destruct b. setoid_symm A. assumption. assumption.
   destruct b. assumption. setoid_symm B. assumption.
 - intros.
-  destruct a. destruct b. destruct c. setoid_tran A u0. assumption. assumption. assumption.
+  destruct a. destruct b. destruct c. setoid_tran A s0. assumption. assumption. assumption.
   destruct c. contradiction. contradiction.
   destruct b. destruct c. contradiction. contradiction.
-  destruct c. contradiction. setoid_tran B u0. assumption. assumption.
+  destruct c. contradiction. setoid_tran B s0. assumption. assumption.
 Defined.
 
 
 
 Record Property (A : Setoid) := {
-  underlying_prop : |A| -> Prop;
-  property_is_extensional: 
-    forall a b: |A|, a ==[A] b -> underlying_prop a -> underlying_prop b
+  Property_Prop : |A| -> Prop;
+  Property_PropIsExtensional: 
+    forall a b: |A|, a ==[A] b -> Property_Prop a -> Property_Prop b
 }.
 
 Record Relation (A B : Setoid) := {
-  underlying_relation : |A| -> |B| -> Prop;
-  relation_is_extensional:
+  Relation_Rel : |A| -> |B| -> Prop;
+  Relation_RelIsExtensional:
     forall a b : |A|, forall c d : |B|,
       a ==[A] b -> c ==[B] d ->
-      underlying_relation a c -> underlying_relation b d
+      Relation_Rel a c -> Relation_Rel b d
 }.
 
 
-Notation "A ==> B" := (Function A B) (at level 68, right associativity).
-Notation "B ^^ A" := (FunctionSetoid A B) (at level 67, no associativity).
-
-Definition IsInjective {A B : Setoid} (f : A ==> B) : Prop :=
+Definition IsInjection {A B : Setoid} (f : A ==> B) : Prop :=
   forall a b : |A|, f` a ==[B] f` b -> a ==[A] b.
 
-Definition IsSurjective {A B : Setoid} (f : A ==> B) : Prop :=
+Definition IsSurjection {A B : Setoid} (f : A ==> B) : Prop :=
   forall b: |B|, exists a: |A|, f ` a ==[B] b.
 
-Definition IsBijective {A B : Setoid} (f : A ==> B) : Prop :=
-  IsInjective f /\ IsSurjective f.
+Definition IsBijection {A B : Setoid} (f : A ==> B) : Prop :=
+  IsInjection f /\ IsSurjection f.
 
 Definition id {A : Setoid} : A ==> A.
   apply (Build_Function A A (fun x => x)).
@@ -186,8 +184,8 @@ Defined.
 Definition compose {A B C: Setoid} (g : B ==> C) (f : A ==> B): A ==> C.
   apply (Build_Function A C (fun a : |A| => g ` (f ` a))).
   intros.
-  apply map_is_extensional.
-  apply map_is_extensional.
+  apply Function_MapIsExtensional.
+  apply Function_MapIsExtensional.
   assumption.
 Defined.
 
@@ -206,7 +204,7 @@ Inductive Unit: Type := Star.
 
 Definition UnitSetoid : Setoid.
   apply (Build_Setoid Unit (fun _ _ => True)).
-  apply Build_Equivalence; auto.
+  apply Build_IsEquivalence; auto.
 Defined.
 
 Definition Unit_function {A : Setoid} : A ==> UnitSetoid.
@@ -216,7 +214,7 @@ Defined.
 Lemma Unit_function_is_unique:
   forall B : Setoid,
     forall g: B ==> UnitSetoid, Unit_function ==[UnitSetoid^^B] g.
-intros. simpl. unfold Function_eqv.
+intros. simpl. unfold FunctionEquivalence.
 intros. simpl. trivial.
 Defined.
 
@@ -224,16 +222,16 @@ Defined.
 
 Lemma MonoInjective {A B : Setoid}:
   forall f : A ==> B,
-  IsMono f <-> IsInjective f.
+  IsMono f <-> IsInjection f.
 intros. split.
-- unfold IsMono. unfold IsInjective.
+- unfold IsMono. unfold IsInjection.
   intros. specialize (H UnitSetoid (const a) (const b)).
-  simpl in H. unfold Function_eqv in H. simpl in H.
+  simpl in H. unfold FunctionEquivalence in H. simpl in H.
   intuition.
-- unfold IsMono. unfold IsInjective.
-  intros. simpl. unfold Function_eqv; simpl. intros.
+- unfold IsMono. unfold IsInjection.
+  intros. simpl. unfold FunctionEquivalence; simpl. intros.
   specialize (H (g ` a) (h ` a)).
-  simpl in H0.  unfold Function_eqv in H0; simpl.
+  simpl in H0.  unfold FunctionEquivalence in H0; simpl.
   specialize (H0 a). intuition.
 Qed.
 
@@ -243,30 +241,30 @@ Definition HasRightInverse {A B : Setoid} (f : A ==> B) : Prop :=
 
 Lemma HasRightInverseIsSurjection {A B : Setoid}: 
   forall f : A ==> B,
-  HasRightInverse f -> IsSurjective f.
+  HasRightInverse f -> IsSurjection f.
 intros. 
- unfold HasRightInverse. unfold IsSurjective.
+ unfold HasRightInverse. unfold IsSurjection.
   intros. destruct H as [g].
-  simpl in H. unfold Function_eqv in H.
+  simpl in H. unfold FunctionEquivalence in H.
   exists (g ` b). apply H.
 Qed.
 
 Definition IsChoiceSetoid (S : Setoid) : Prop :=
   forall X : Setoid, forall f : X ==> S,
-    IsSurjective f -> HasRightInverse f.
+    IsSurjection f -> HasRightInverse f.
 
 
 
 Record Subset (A: Setoid) := {
-  subset_setoid: Setoid ;
-  subset_injection: subset_setoid ==> A;
-  subset_injection_is_injective: IsInjective subset_injection
+  Subset_Setoid: Setoid ;
+  Subset_Injection: Subset_Setoid ==> A;
+  Subset_InjectionIsInjection: IsInjection Subset_Injection
 }.
 
 
 
 Definition IsMemberOfSubset {A : Setoid} (a : |A|) (S: Subset A) : Prop :=
-  exists x : |subset_setoid _ S|, ((subset_injection _ S)` x) ==[A] a.
+  exists x : |Subset_Setoid _ S|, ((Subset_Injection _ S)` x) ==[A] a.
 
 Notation "a ::[ A ] S" := (@IsMemberOfSubset A a S) (at level 66, no associativity).
 
@@ -283,14 +281,14 @@ Record Sigma (A : Type) (P : A -> Type) := {
 }.
 
 Definition SigmaSetoid (X : Setoid) (P : Property X) : Setoid.
-  apply (Build_Setoid (Sigma (|X|) (P.(underlying_prop X)))
+  apply (Build_Setoid (Sigma (|X|) (P.(Property_Prop X)))
         (fun a b =>
           pr1 _ _ a ==[X] pr1 _ _ b
         )).
-  apply Build_Equivalence; intros.
+  apply Build_IsEquivalence; intros.
   - setoid_refl X.
   - setoid_symm X. assumption.
-  - setoid_tran X (pr1 (| X |) P.(underlying_prop X) b) ; assumption.
+  - setoid_tran X (pr1 (| X |) P.(Property_Prop X) b) ; assumption.
 Defined.
 
 Definition SigmaSetoid_pr1 {X : Setoid} {P : Property X}: SigmaSetoid X P ==> X.
@@ -301,7 +299,7 @@ Defined.
 
 Definition SubsetComprehension (A : Setoid) (P : Property A) : Subset A.
   apply (Build_Subset A (SigmaSetoid A P) SigmaSetoid_pr1).
-  unfold IsInjective. intros.
+  unfold IsInjection. intros.
   simpl in H.
   simpl.
   assumption.
@@ -310,13 +308,13 @@ Defined.
 
 Lemma BetaSubsetMembership {A : Setoid} {P : Property A}:
   forall a : |A|,
-  (a ::[A] (SubsetComprehension A P)) <-> P.(underlying_prop _) a.
+  (a ::[A] (SubsetComprehension A P)) <-> P.(Property_Prop _) a.
 intros. split.
 - intros. unfold IsMemberOfSubset in H. simpl in H.
   destruct H.
-  assert  ((underlying_prop A P) (pr1 (| A |) (underlying_prop A P) x)).
+  assert  ((Property_Prop A P) (pr1 (| A |) (Property_Prop A P) x)).
   apply pr2.
-  apply (property_is_extensional A P (pr1 (| A |) (underlying_prop A P) x) a).
+  apply (Property_PropIsExtensional A P (pr1 (| A |) (Property_Prop A P) x) a).
   assumption.
   assumption.
 - intros. unfold IsMemberOfSubset.
@@ -327,31 +325,31 @@ Qed.
 
 
 Lemma ExtPropConj {A: Setoid} (P Q : Property A): Property A.
-  apply (Build_Property A (fun x => underlying_prop A P x /\ underlying_prop A Q x)).
+  apply (Build_Property A (fun x => Property_Prop A P x /\ Property_Prop A Q x)).
   intros. destruct H0. split.
-  apply (property_is_extensional A P a); assumption.
-  apply (property_is_extensional A Q a); assumption.
+  apply (Property_PropIsExtensional A P a); assumption.
+  apply (Property_PropIsExtensional A Q a); assumption.
 Defined.
 
 Lemma ExtPropDisj {A: Setoid} (P Q : Property A): Property A.
-  apply (Build_Property A (fun x => underlying_prop A P x \/ underlying_prop A Q x)).
+  apply (Build_Property A (fun x => Property_Prop A P x \/ Property_Prop A Q x)).
   intros. destruct H0.
-  - left. apply (property_is_extensional A P a); assumption.
-  - right. apply (property_is_extensional A Q a); assumption.
+  - left. apply (Property_PropIsExtensional A P a); assumption.
+  - right. apply (Property_PropIsExtensional A Q a); assumption.
 Defined.
 
 
 Definition PropertyOnProdToRelation {A B : Setoid} (P : Property (ProdSetoid A B)) : Relation A B.
-apply (Build_Relation A B (fun a b => underlying_prop _ P {| fst := a; snd := b |})).
+apply (Build_Relation A B (fun a b => Property_Prop _ P {| fst := a; snd := b |})).
 intros.
-apply (property_is_extensional (ProdSetoid A B) P {| fst := a; snd := c |}).
+apply (Property_PropIsExtensional (ProdSetoid A B) P {| fst := a; snd := c |}).
 simpl. intuition. assumption.
 Defined.
 
 Lemma PR {A B : Setoid}:
   forall P : Property (ProdSetoid A B), exists R : Relation A B,
   forall a b,
-  underlying_prop _ P {| fst := a; snd := b |}  <-> underlying_relation _ _ R a b.
+  Property_Prop _ P {| fst := a; snd := b |}  <-> Relation_Rel _ _ R a b.
 intros.
 exists (PropertyOnProdToRelation P).
 intros.
@@ -360,11 +358,11 @@ Qed.
 
 Definition RelationToPropertyProd {A B : Setoid} (R: Relation A B): Property (ProdSetoid A B).
 apply (Build_Property (ProdSetoid A B)
-    (fun a => underlying_relation A B R (fst (|A|) (|B|) a) (snd (|A|) (|B|) a))).
+    (fun a => Relation_Rel A B R (fst (|A|) (|B|) a) (snd (|A|) (|B|) a))).
 intros.
 simpl in H.
 destruct H.
-apply (relation_is_extensional A B R 
+apply (Relation_RelIsExtensional A B R 
   (fst (| A |) (| B |) a) 
   (fst (| A |) (| B |) b)
   (snd (| A |) (| B |) a)
@@ -375,7 +373,7 @@ Defined.
 Lemma PR2 {A B : Setoid}:
   forall R : Relation A B, exists P : Property (ProdSetoid A B),
   forall a b,
-  underlying_prop _ P {| fst := a; snd := b |}  <-> underlying_relation _ _ R a b.
+  Property_Prop _ P {| fst := a; snd := b |}  <-> Relation_Rel _ _ R a b.
 intros.
 exists (RelationToPropertyProd R).
 intros. simpl. intuition.
@@ -384,37 +382,37 @@ Qed.
 
 
 Definition IsEquivalenceRelation {A: Setoid} (R : Relation A A) := 
-  Equivalence (R.(underlying_relation A A)).
+  IsEquivalence (R.(Relation_Rel A A)).
 
 
 Definition QuotientSetoid (A : Setoid) (R : Relation A A) (p : IsEquivalenceRelation R): Setoid :=
-  {| U := | A |; eqv := underlying_relation A A R; eqv_is_equivalence := p |}.
+  {| Setoid_Type := | A |; Setoid_Equivalence := Relation_Rel A A R; Setoid_IsEquivalence := p |}.
 
 
 Definition quotient (A : Setoid) (R: Relation A A) (p :IsEquivalenceRelation R) : 
   A ==> QuotientSetoid A R p.
 apply (Build_Function A (QuotientSetoid A R p) (fun x => x)).
 intros.
-simpl. destruct p.
-apply (relation_is_extensional A A R a a a b).
-setoid_refl A. assumption. apply refl0.
+simpl. destruct p as [refl].
+apply (Relation_RelIsExtensional A A R a a a b).
+setoid_refl A. assumption. apply refl.
 Defined.
 
 
-Lemma quotient_is_surjective {A: Setoid} {R: Relation A A} (p :IsEquivalenceRelation R): IsSurjective (quotient A R p).
-unfold IsSurjective. intros. simpl.
+Lemma quotient_is_surjective {A: Setoid} {R: Relation A A} (p :IsEquivalenceRelation R): IsSurjection (quotient A R p).
+unfold IsSurjection. intros. simpl.
 exists b.
-destruct p.
-apply refl0.
+destruct p as [refl].
+apply refl.
 Qed.
 
 
 
 Definition quotient_lift {A B: Setoid} {R: Relation A A} {p: IsEquivalenceRelation R}
   (f : A ==> B)
-  (q: forall a b : |A|, R.(underlying_relation A A) a b -> f`a ==[B] f`b):
+  (q: forall a b : |A|, R.(Relation_Rel A A) a b -> f`a ==[B] f`b):
   (QuotientSetoid A R p) ==> B.
-apply (Build_Function (QuotientSetoid A R p) B (f.(underlying_map _ _))).
+apply (Build_Function (QuotientSetoid A R p) B (f.(Function_Map _ _))).
 intros.
 simpl in H.
 apply q.
@@ -424,7 +422,7 @@ Defined.
 
 Lemma QuotientFactors {A B : Setoid} 
   (R: Relation A A) (p : IsEquivalenceRelation R) (f : A ==> B)
-  (q : forall a b : |A|, R.(underlying_relation A A) a b -> f`a ==[B] f`b):
+  (q : forall a b : |A|, R.(Relation_Rel A A) a b -> f`a ==[B] f`b):
   exists h : QuotientSetoid A R p ==> B,
   forall x : |A|,
   h ` (quotient A R p ` x) ==[B] f ` x.
@@ -439,13 +437,13 @@ Inductive NatOver : nat -> Type :=
 
 Definition FinSetoid (n: nat) : Setoid.
 apply (Build_Setoid (NatOver n) eq).
-apply Build_Equivalence ; intuition. 
+apply Build_IsEquivalence ; intuition. 
 rewrite H. assumption.
 Defined.
 
 
 Definition IsSetoidFinite (S: Setoid): Prop :=
-  exists n : nat, exists f : S ==> FinSetoid n,  IsBijective f.
+  exists n : nat, exists f : S ==> FinSetoid n,  IsBijection f.
 
 
 
