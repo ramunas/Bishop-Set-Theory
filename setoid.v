@@ -63,8 +63,7 @@ Definition FunctionSetoid (A: Setoid) (B : Setoid) : Setoid := {|
   Setoid_IsEquivalence := Function_eqv_is_equivalence
 |}.
 
-Notation "A ==> B" := (Function A B) (at level 68, right associativity).
-Notation "B ^^ A" := (FunctionSetoid A B) (at level 67, no associativity).
+Notation "A ==> B" := (FunctionSetoid A B) (at level 68, right associativity).
 
 
 Record Prod (A : Type) (B : Type) := {
@@ -162,26 +161,26 @@ Record Relation (A B : Setoid) := {
 }.
 
 
-Definition IsInjection {A B : Setoid} (f : A ==> B) : Prop :=
+Definition IsInjection {A B : Setoid} (f : |A ==> B|) : Prop :=
   forall a b : |A|, f` a ==[B] f` b -> a ==[A] b.
 
-Definition IsSurjection {A B : Setoid} (f : A ==> B) : Prop :=
+Definition IsSurjection {A B : Setoid} (f : |A ==> B|) : Prop :=
   forall b: |B|, exists a: |A|, f ` a ==[B] b.
 
-Definition IsBijection {A B : Setoid} (f : A ==> B) : Prop :=
+Definition IsBijection {A B : Setoid} (f : |A ==> B|) : Prop :=
   IsInjection f /\ IsSurjection f.
 
-Definition id {A : Setoid} : A ==> A.
+Definition id {A : Setoid} : |A ==> A|.
   apply (Build_Function A A (fun x => x)).
   auto.
 Defined.
 
-Definition const {A B : Setoid} (x : |B|) : A ==> B.
+Definition const {A B : Setoid} (x : |B|) : |A ==> B|.
   apply (Build_Function A B (fun y => x)).
   intros. setoid_refl B.
 Defined.
 
-Definition compose {A B C: Setoid} (g : B ==> C) (f : A ==> B): A ==> C.
+Definition compose {A B C: Setoid} (g : |B ==> C|) (f : |A ==> B|): |A ==> C|.
   apply (Build_Function A C (fun a : |A| => g ` (f ` a))).
   intros.
   apply Function_MapIsExtensional.
@@ -191,14 +190,14 @@ Defined.
 
 Notation "f |> g" := (compose g f) (at level 65, left associativity).
 
-Definition IsMono {A B : Setoid} (f : A ==> B) : Prop :=
-  forall C : Setoid, forall g h: C ==> A, g |> f  ==[B^^C] h |> f -> g ==[A^^C] h.
+Definition IsMono {A B : Setoid} (f : |A ==> B|) : Prop :=
+  forall C : Setoid, forall g h: |C ==> A|, g |> f  ==[C ==> B] h |> f -> g ==[C ==> A] h.
 
-Definition IsEpi {A B : Setoid} (f : A ==> B) : Prop :=
-  forall C : Setoid, forall g h: B ==> C, f |> g ==[C^^A] f |> h -> g ==[C^^B] h.
+Definition IsEpi {A B : Setoid} (f : |A ==> B|) : Prop :=
+  forall C : Setoid, forall g h: |B ==> C|, f |> g ==[A ==> C] f |> h -> g ==[B ==> C] h.
 
-Definition IsIso {A B : Setoid} (f : A ==> B) : Prop :=
-  exists g : B ==> A, f |> g ==[A^^A] id /\ g |> f ==[B^^B] id.
+Definition IsIso {A B : Setoid} (f : |A ==> B|) : Prop :=
+  exists g : |B ==> A|, f |> g ==[A ==> A] id /\ g |> f ==[B ==> B] id.
 
 Inductive Unit: Type := Star.
 
@@ -207,13 +206,13 @@ Definition UnitSetoid : Setoid.
   apply Build_IsEquivalence; auto.
 Defined.
 
-Definition Unit_function {A : Setoid} : A ==> UnitSetoid.
+Definition Unit_function {A : Setoid} : |A ==> UnitSetoid|.
 apply (Build_Function A UnitSetoid (fun x => Star)). intros. setoid_refl UnitSetoid.
 Defined.
 
 Lemma Unit_function_is_unique:
   forall B : Setoid,
-    forall g: B ==> UnitSetoid, Unit_function ==[UnitSetoid^^B] g.
+    forall g: |B ==> UnitSetoid|, Unit_function ==[B ==> UnitSetoid] g.
 intros. simpl. unfold FunctionEquivalence.
 intros. simpl. trivial.
 Defined.
@@ -221,7 +220,7 @@ Defined.
 
 
 Lemma MonoInjective {A B : Setoid}:
-  forall f : A ==> B,
+  forall f : |A ==> B|,
   IsMono f <-> IsInjection f.
 intros. split.
 - unfold IsMono. unfold IsInjection.
@@ -236,11 +235,11 @@ intros. split.
 Qed.
 
 
-Definition HasRightInverse {A B : Setoid} (f : A ==> B) : Prop :=
-  exists g : B ==> A, g |> f ==[B^^B] id.
+Definition HasRightInverse {A B : Setoid} (f : |A ==> B|) : Prop :=
+  exists g : |B ==> A|, g |> f ==[B ==> B] id.
 
 Lemma HasRightInverseIsSurjection {A B : Setoid}: 
-  forall f : A ==> B,
+  forall f : |A ==> B|,
   HasRightInverse f -> IsSurjection f.
 intros. 
  unfold HasRightInverse. unfold IsSurjection.
@@ -250,14 +249,14 @@ intros.
 Qed.
 
 Definition IsChoiceSetoid (S : Setoid) : Prop :=
-  forall X : Setoid, forall f : X ==> S,
+  forall X : Setoid, forall f : |X ==> S|,
     IsSurjection f -> HasRightInverse f.
 
 
 
 Record Subset (A: Setoid) := {
   Subset_Setoid: Setoid ;
-  Subset_Injection: Subset_Setoid ==> A;
+  Subset_Injection: |Subset_Setoid ==> A|;
   Subset_InjectionIsInjection: IsInjection Subset_Injection
 }.
 
@@ -291,7 +290,7 @@ Definition SigmaSetoid (X : Setoid) (P : Property X) : Setoid.
   - setoid_tran X (pr1 (| X |) P.(Property_Prop X) b) ; assumption.
 Defined.
 
-Definition SigmaSetoid_pr1 {X : Setoid} {P : Property X}: SigmaSetoid X P ==> X.
+Definition SigmaSetoid_pr1 {X : Setoid} {P : Property X}: |SigmaSetoid X P ==> X|.
   apply (Build_Function (SigmaSetoid X P) X (pr1 _ _)).
   intros. simpl in H. assumption.
 Defined.
@@ -389,8 +388,8 @@ Definition QuotientSetoid (A : Setoid) (R : Relation A A) (p : IsEquivalenceRela
   {| Setoid_Type := | A |; Setoid_Equivalence := Relation_Rel A A R; Setoid_IsEquivalence := p |}.
 
 
-Definition quotient (A : Setoid) (R: Relation A A) (p :IsEquivalenceRelation R) : 
-  A ==> QuotientSetoid A R p.
+Definition Quotient (A : Setoid) (R: Relation A A) (p :IsEquivalenceRelation R) : 
+  |A ==> QuotientSetoid A R p|.
 apply (Build_Function A (QuotientSetoid A R p) (fun x => x)).
 intros.
 simpl. destruct p as [refl].
@@ -399,7 +398,7 @@ setoid_refl A. assumption. apply refl.
 Defined.
 
 
-Lemma quotient_is_surjective {A: Setoid} {R: Relation A A} (p :IsEquivalenceRelation R): IsSurjection (quotient A R p).
+Lemma QuotientIsSurjection {A: Setoid} {R: Relation A A} (p :IsEquivalenceRelation R): IsSurjection (Quotient A R p).
 unfold IsSurjection. intros. simpl.
 exists b.
 destruct p as [refl].
@@ -407,11 +406,10 @@ apply refl.
 Qed.
 
 
-
-Definition quotient_lift {A B: Setoid} {R: Relation A A} {p: IsEquivalenceRelation R}
-  (f : A ==> B)
+Definition LiftFunctionToQuotient {A B: Setoid} {R: Relation A A} {p: IsEquivalenceRelation R}
+  (f : |A ==> B|)
   (q: forall a b : |A|, R.(Relation_Rel A A) a b -> f`a ==[B] f`b):
-  (QuotientSetoid A R p) ==> B.
+  |(QuotientSetoid A R p) ==> B|.
 apply (Build_Function (QuotientSetoid A R p) B (f.(Function_Map _ _))).
 intros.
 simpl in H.
@@ -421,12 +419,12 @@ Defined.
 
 
 Lemma QuotientFactors {A B : Setoid} 
-  (R: Relation A A) (p : IsEquivalenceRelation R) (f : A ==> B)
+  (R: Relation A A) (p : IsEquivalenceRelation R) (f : |A ==> B|)
   (q : forall a b : |A|, R.(Relation_Rel A A) a b -> f`a ==[B] f`b):
-  exists h : QuotientSetoid A R p ==> B,
+  exists h : |QuotientSetoid A R p ==> B|,
   forall x : |A|,
-  h ` (quotient A R p ` x) ==[B] f ` x.
-exists (quotient_lift f q). simpl. intros.
+  h ` (Quotient A R p ` x) ==[B] f ` x.
+exists (LiftFunctionToQuotient f q). simpl. intros.
 setoid_refl B.
 Qed.
 
@@ -443,7 +441,7 @@ Defined.
 
 
 Definition IsSetoidFinite (S: Setoid): Prop :=
-  exists n : nat, exists f : S ==> FinSetoid n,  IsBijection f.
+  exists n : nat, exists f : |S ==> FinSetoid n|,  IsBijection f.
 
 
 
