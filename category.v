@@ -1,4 +1,6 @@
-Load "/Users/ramunas/Desktop/setoid.v".
+Load "/Users/ramunas/Desktop/SetTheory/setoid.v".
+(* Add LoadPath "/Users/ramunas/Desktop/SetTheory/". *)
+
 
 Record Category := {
   Category_Objects: Type;
@@ -27,8 +29,8 @@ Record Category := {
 Record Functor (C D: Category) := {
   Functor_ObjectsMap : C.(Category_Objects) -> D.(Category_Objects);
   Functor_ArrowsMap {A B : C.(Category_Objects)}: 
-      C.(Category_Arrows) A B ==> 
-      D.(Category_Arrows) (Functor_ObjectsMap A) (Functor_ObjectsMap B);
+      |C.(Category_Arrows) A B ==> 
+      D.(Category_Arrows) (Functor_ObjectsMap A) (Functor_ObjectsMap B)|;
 
   Functor_PreservesIdentity:
     forall A : C.(Category_Objects),
@@ -44,12 +46,12 @@ Record Functor (C D: Category) := {
 }.
 
 
-
-
-
-
-
-
+Definition CategorySetoid: Category.
+apply (Build_Category Setoid FunctionSetoid (@IdFunction) (@FunctionCompose)).
+- intros. simpl. unfold FunctionEquivalence. simpl. intros. setoid_refl A.
+- intros. simpl. unfold FunctionEquivalence. simpl. intros. setoid_refl B.
+- intros. simpl. unfold FunctionEquivalence. intros. simpl. setoid_refl D.
+Defined.
 
 
 
