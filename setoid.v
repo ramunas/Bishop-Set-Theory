@@ -1,29 +1,6 @@
+Load MLTT.
 
-Notation "'sigma' x .. y , p" := 
-  (sigT (fun x => .. (sigT (fun y => p)) ..)) 
-  (at level 200, x binder, y binder, right associativity) : type_scope.
-
-
-Notation "A & B" := (prod A B) (at level 100, right associativity) : type_scope.
-
-Definition Correspondence A B := 
-  (A -> B) & (B -> A).
-
-Notation "A <--> B" := (Correspondence A B) (at level 101, right associativity): type_scope.
-
-
-Record IsEquivalence {A : Type} (eq: A -> A -> Type) := {
-  Equivalence_Reflexivity: forall a : A, eq a a;
-  Equivalence_Symmetry: forall a b : A, eq a b -> eq b a;
-  Equivalence_Transitivity: forall a b c : A, eq a b -> eq b c -> eq a c;
-}.
-
-
-Definition PropositionalEqualityIsEquivalence {A: Type}: IsEquivalence (@eq A).
-apply Build_IsEquivalence; intuition.
-rewrite H; assumption.
-Defined.
-
+Set Universe Polymorphism.
 
 Record Setoid := {
   Setoid_Type : Type;
@@ -31,13 +8,17 @@ Record Setoid := {
   Setoid_IsEquivalence: IsEquivalence Setoid_Equivalence;
 }.
 
-
 Notation "a ==[ A ] b" := (Setoid_Equivalence A a b) (at level 70, no associativity).
 Notation "| A |" := (Setoid_Type A) (at level 101, no associativity).
 
 Ltac setoid_refl A := apply (Equivalence_Reflexivity (Setoid_Equivalence A) (Setoid_IsEquivalence A)).
 Ltac setoid_symm A := apply (Equivalence_Symmetry (Setoid_Equivalence A) (Setoid_IsEquivalence A)).
 Ltac setoid_tran A e := apply (Equivalence_Transitivity (Setoid_Equivalence A) (Setoid_IsEquivalence A)) with (b := e).
+
+
+
+Definition IsSetoidDiscrete (A : Setoid) : Type :=
+  forall a b, Decidable (a ==[A] b).
 
 
 Definition unique_for_setoid (A: Setoid) (P : (|A|) -> Type) (x: |A|): Type :=
@@ -48,12 +29,9 @@ Notation "'exists_in' [ A ] ! x , P" :=
   (sigT (unique_for_setoid A (fun x => P))) (at level 60).
 
 
-Definition PropSetoidOf (A : Type): Setoid.
-apply (Build_Setoid A (@eq A) PropositionalEqualityIsEquivalence).
+Definition IdentitySetoid (A : Type): Setoid.
+apply (Build_Setoid A (@identity A) IdentityIsEquivalence).
 Defined.
-
-Definition Prod_Pr1 (A B : Type) (p : A * B) : A := match p with pair x y => x end.
-Definition Prod_Pr2 (A B : Type) (p : A * B) : B := match p with pair x y => y end.
 
 
 Definition ProdSetoid (A B : Setoid) : Setoid.
@@ -258,33 +236,6 @@ split.
 Qed.
 
 
-(*
-Inductive Sum_equivalence {A B : Setoid}: Sum (|A|) (|B|) -> Sum (|A|) (|B|) -> Prop :=
-| inl_eq: forall a b : |A|, a ==[A] b -> Sum_equivalence (inl _ _ a) (inl _ _ b)
-| inr_eq: forall a b : |B|, a ==[B] b -> Sum_equivalence (inr _ _ a) (inr _ _ b).
-
-Definition SumSetoid (A B : Setoid) : Setoid.
-apply (Build_Setoid (Sum (|A|) (|B|)) (Sum_equivalence)).
-apply (Build_Equivalence).
-- intros. destruct a.
-  + apply inl_eq. setoid_refl A.
-  + apply inr_eq. setoid_refl B.
-- intros. destruct a. destruct b.
-  apply inl_eq. inversion H. setoid_symm A. assumption.
-  inversion H.
-  destruct b.
-  inversion H.
-  apply inr_eq. inversion H. setoid_symm B. assumption.
-- intros. destruct a. destruct b. destruct c.
-  apply inl_eq. inversion H. inversion H0. setoid_tran A u0; assumption.
-  inversion H0.
-  destruct c. inversion H0. inversion H.
-  destruct b. destruct c. inversion H. inversion H.
-  destruct c. inversion H0.
-  apply inr_eq. inversion H. inversion H0. setoid_tran B u0; assumption.
-Defined.
-*)
-
 Definition SumSetoid (A B : Setoid) : Setoid.
 apply (Build_Setoid
   ((|A|) + (|B|))
@@ -400,7 +351,7 @@ Definition IsIso {A B : Setoid} (f : |A ==> B|) : Type :=
   sigma g : |B ==> A|, f |> g ==[A ==> A] IdFunction & g |> f ==[B ==> B] IdFunction.
 
 Definition UnitSetoid : Setoid.
-  apply (Build_Setoid unit (fun _ _ => True)).
+  apply (Build_Setoid unit (fun _ _ => unit)).
   apply Build_IsEquivalence; auto.
 Defined.
 
@@ -412,7 +363,7 @@ Lemma Unit_function_is_unique:
   forall B : Setoid,
     forall g: |B ==> UnitSetoid|, Unit_function ==[B ==> UnitSetoid] g.
 intros. simpl. unfold FunctionEquivalence.
-intros. simpl. trivial.
+intros. simpl. constructor.
 Defined.
 
 
@@ -534,15 +485,16 @@ intros. split.
 Qed.
 
 
+Definition IsSingleton {A : Setoid} (S : Subset A) : Type :=
+  forall a b: |A|, a ::[A] S -> b ::[A] S -> a ==[A] b.
+
+
 Definition Singleton {A : Setoid} (a : |A|) : Subset A.
 assert (Property A).
-apply (Build_Property A (fun x => a ==[A] x)).
+apply (Build_Property A (fun x => (a ==[A] x))).
 intros. setoid_tran A a0; assumption.
 apply (SubsetComprehension A X).
 Defined.
-
-Definition IsSingleton {A : Setoid} (S : Subset A) : Type :=
-  forall a b: |A|, a ::[A] S -> b ::[A] S -> a ==[A] b.
 
 Lemma SingletonIsSingleton {A : Setoid} (a : |A|) : IsSingleton (Singleton a).
 unfold IsSingleton.
@@ -560,6 +512,27 @@ intros. apply BetaSubsetMembership in X. simpl in *. assumption.
 Qed.
 
 
+Definition SubsetUnion {A : Setoid} (S U : Subset A) : Subset A.
+apply (SubsetComprehension A).
+apply (Build_Property A (fun a => sum (a ::[A] S) (a ::[A] U))).
+intros.
+destruct X0.
+- left. destruct i. unfold IsMemberOfSubset. exists x.
+  setoid_tran A a; assumption.
+- right. destruct i.  unfold IsMemberOfSubset. exists x.
+  setoid_tran A a; assumption.
+Defined.
+
+Definition SubsetIntersection {A : Setoid} (S U : Subset A) : Subset A.
+apply (SubsetComprehension A).
+apply (Build_Property A (fun a => a ::[A] S & a ::[A] U)).
+intros. destruct X0. split.
+- destruct i. unfold IsMemberOfSubset. exists x.
+  setoid_tran A a; assumption.
+- destruct i0. unfold IsMemberOfSubset. exists x.
+  setoid_tran A a; assumption.
+Defined.
+
 Definition FunctionInverseImage {A B : Setoid} (S : Subset B) (f : |A ==> B|) : Subset A.
 apply (SubsetComprehension A).
 apply (Build_Property A (fun a => (f ` a) ::[B] S)).
@@ -571,7 +544,6 @@ apply (FunctionCong a b). assumption.
 setoid_symm B.
 assumption.
 Defined.
-
 
 Definition BijectionInversion {A B : Setoid} 
   (f : |A ==> B|) (p: IsBijection f): | B ==> A|.
@@ -587,6 +559,32 @@ setoid_tran B a; assumption.
 setoid_tran B b. assumption.
 setoid_symm B. assumption.
 Defined.
+
+Lemma BijectionInversionIsBijection {A B :Setoid}
+  (f : |A ==> B|) (p: IsBijection f) : IsBijection (BijectionInversion f p).
+destruct p.
+split.
+- unfold IsInjection in *. simpl.
+  unfold IsSurjection in *. intros.
+  destruct i0. 
+  destruct i0. simpl in *.
+  assert (f ` x ==[B] f ` x0).
+  apply (Function_MapIsExtensional _ _ f). assumption.
+  assert (a ==[B] f ` x0).
+  setoid_tran B (f ` x). setoid_symm B. assumption. assumption.
+  setoid_tran B (f ` x0). assumption. assumption.
+- unfold IsInjection in *. simpl. unfold IsSurjection in *. intros.
+  simpl.
+  exists (f ` b). destruct i0. simpl.
+  intuition.
+Qed.
+
+Definition BijectionInversionBijection {A B : Setoid} 
+  (f : |A ==> B|) (p: IsBijection f): sigma g :| B ==> A|, IsBijection g.
+exists (BijectionInversion f p).
+apply (BijectionInversionIsBijection f p).
+Defined.
+
 
 Lemma BijectionToIso {A B : Setoid}  (f : |A ==> B|) (p: IsBijection f) : IsIso f.
 unfold IsIso.
@@ -622,8 +620,6 @@ split.
 - apply IsoToBijection.
 Qed.
 
-
-
 Lemma ExtPropConj {A: Setoid} (P Q : Property A): Property A.
   apply (Build_Property A (fun x => Property_Prop A P x & Property_Prop A Q x)).
   intros. destruct X0. split.
@@ -639,24 +635,49 @@ Lemma ExtPropDisj {A: Setoid} (P Q : Property A): Property A.
 Defined.
 
 
-Definition PropertyOnProdToRelation {A B : Setoid} (P : Property (ProdSetoid A B)) : Relation A B.
+Definition PropertySetoid (A : Setoid) : Setoid.
+apply (Build_Setoid (Property A)
+  (fun P Q => forall a, Property_Prop A P a <--> Property_Prop A Q a)).
+split.
+- intros. split; intuition.
+- intros. split.
+  + intros. apply X. assumption.
+  + intros. apply X. assumption.
+- intros. split.
+  + intros. apply X0.  apply X. assumption.
+  + intros. apply X.  apply X0. assumption.
+Defined.
+
+
+Definition RelationSetoid (A B : Setoid): Setoid.
+apply (Build_Setoid (Relation A B)
+  (fun R S => forall a b, Relation_Rel A B R a b <--> Relation_Rel A B S a b)).
+split; intros.
+- split; intros.
+  assumption. assumption.
+- split; intros. apply X. assumption. apply X. assumption.
+- split; intros. apply X0. apply X. assumption. apply X. apply X0. assumption. 
+Defined.
+
+
+Definition PropertyOnProdToRelation {A B : Setoid} 
+  (P : Property (A # B)) : Relation A B.
 apply (Build_Relation A B (fun a b => Property_Prop _ P (a, b))).
 intros.
 apply (Property_PropIsExtensional (ProdSetoid A B) P (a, c)).
 simpl. intuition. assumption.
 Defined.
 
-Lemma PR {A B : Setoid}:
-  forall P : Property (ProdSetoid A B), sigma R : Relation A B,
-  forall a b,
-  Property_Prop _ P (a, b)  <--> Relation_Rel _ _ R a b.
+Definition FunctionPropertyOnProdToRelation {A B : Setoid}:
+  | PropertySetoid (A # B) ==> RelationSetoid A B |.
+apply (Build_Function (PropertySetoid (A # B)) (RelationSetoid A B) 
+  PropertyOnProdToRelation).
 intros.
-exists (PropertyOnProdToRelation P).
-intros.
-simpl. split; intuition.
-Qed.
+simpl. intros. apply X.
+Defined.
 
-Definition RelationToPropertyProd {A B : Setoid} (R: Relation A B): Property (ProdSetoid A B).
+
+Definition RelationToPropertyProd {A B : Setoid} (R: Relation A B): Property (A # B).
 apply (Build_Property (ProdSetoid A B)
     (fun a => Relation_Rel A B R (Prod_Pr1 (|A|) (|B|) a) (Prod_Pr2 (|A|) (|B|) a))).
 intros.
@@ -670,15 +691,21 @@ apply (Relation_RelIsExtensional A B R
 ); assumption.
 Defined.
 
-Lemma PR2 {A B : Setoid}:
-  forall R : Relation A B, sigma P : Property (ProdSetoid A B),
-  forall a b,
-  Property_Prop _ P (a, b)  <--> Relation_Rel _ _ R a b.
+Definition FunctionRelationToPropertyProd {A B : Setoid}:
+  | RelationSetoid A B ==> PropertySetoid (A # B) |.
+apply (Build_Function (RelationSetoid A B) (PropertySetoid (A # B)) 
+  RelationToPropertyProd).
 intros.
-exists (RelationToPropertyProd R).
-intros. simpl. split; intuition.
-Qed.
+simpl. intros. destruct a0. simpl. apply X.
+Defined.
 
+Lemma RelationPropertyProdIsIso
+  {A B : Setoid} : IsIso (@FunctionRelationToPropertyProd A B).
+exists FunctionPropertyOnProdToRelation.
+simpl. unfold FunctionEquivalence. simpl. split; intros.
+- setoid_refl (RelationSetoid A B).
+- destruct a0. simpl. setoid_refl (PropertySetoid (A # B)).
+Qed.
 
 
 Definition IsEquivalenceRelation {A: Setoid} (R : Relation A A) := 
@@ -730,17 +757,23 @@ setoid_refl B.
 Qed.
 
 
-Definition NatSetoid : Setoid := PropSetoidOf nat.
+Definition NatSetoid : Setoid := IdentitySetoid nat.
 
 
 Definition FinOrdSubset (n : nat) : Subset NatSetoid.
 apply (SubsetComprehension ).
-apply (Build_Property NatSetoid (fun x => x < n)).
+(* apply (Build_Property NatSetoid (fun x => x < n)). *)
+apply (Build_Property NatSetoid (fun x => LessThan x n)).
 intros. simpl in X. rewrite <- X. assumption.
 Defined.
 
 Definition FinSetoid (n : nat): Setoid := Subset_Setoid NatSetoid (FinOrdSubset n).
 
+Definition NatToFinSetoid {x : nat} (n: nat) (p: LessThan n x): |FinSetoid x| :=
+existT _ n p.
+
+Definition FinSetoidToNat {x : nat} (n : |FinSetoid x|) : nat :=
+match n with existT _ x _ => x end.
 
 Definition IsSetoidFinite (S: Setoid): Type :=
   sigma n : nat, sigma f : |S ==> FinSetoid n|,  IsBijection f.
@@ -748,15 +781,37 @@ Definition IsSetoidFinite (S: Setoid): Type :=
 Definition IsSubsetFinite {A : Setoid} (S : Subset A) : Type :=
   IsSetoidFinite (Subset_Setoid A S).
 
+Definition IsSubsetDecidable {A : Setoid} (S : Subset A) : Type :=
+  forall a, Decidable (a ::[A] S).
+
+(* TODO:
+Lemma FiniteSubsetMembershipDecidable {A : Setoid}
+  (q : IsSetoidDiscrete A)
+  (S : Subset A) (p : IsSubsetFinite S) :
+  IsSubsetDecidable S.
+unfold IsSubsetDecidable.
+intros. destruct p.  destruct s as [f fbij].
+unfold IsMemberOfSubset.
+unfold IsSetoidDiscrete in q.
+unfold Decidable in *.
+assert (inv : | FinSetoid x ==> Subset_Setoid A S|).
+apply (BijectionInversion f fbij).
+
+induction x.
+- unfold FinSetoid in inv. simpl in inv. destruct inv.
+
+Print nat_rect.
+
+ads
+*)
 
 Definition EnumerateSingletonSubset {A : Setoid} (a : |A|) : 
   | Subset_Setoid A (Singleton a) ==> FinSetoid 1|.
-assert (0 < 1) as obvious. auto.
+assert (LessThan 0 1) as obvious. unfold LessThan. apply LessThanOrEqualRefl.
 apply (Build_Function (Subset_Setoid A (Singleton a)) (FinSetoid 1)
   (fun x => existT _ 0 obvious)).
 simpl. intros. reflexivity.
 Defined.
-
 
 Lemma SingletonIsFinite {A : Setoid} (a : |A|) : IsSubsetFinite (Singleton a).
 unfold IsSubsetFinite.
@@ -772,11 +827,36 @@ split.
   exists a. setoid_refl A.
   exists ael.
   destruct b. simpl in *.
-  unfold lt in p.
-  inversion p. reflexivity. inversion H0.
+  unfold LessThan in p.
+  inversion p. reflexivity. apply ZeroIsTheLeast in H1. discriminate H1.
 Qed.
 
+(* TODO:
+Lemma UnionOfFiniteSubsetsIsFinite {A : Setoid}
+  (S U : Subset A) (p : IsSubsetFinite S) (q: IsSubsetFinite U):
+  IsSubsetFinite (SubsetUnion S U).
+unfold IsSubsetFinite in *.
+unfold IsSetoidFinite in *.
+destruct p. destruct q.
+exists (x + x0).
+destruct s. destruct s0.
+assert (f : |Subset_Setoid A (SubsetUnion S U) ==> FinSetoid (x + x0)|).
+apply (Build_Function (Subset_Setoid A (SubsetUnion S U)) (FinSetoid (x + x0))
+  (fun x => )
+).
+intros.
+*)
 
+
+Definition BijectionSetoid (A B : Setoid) : Setoid.
+apply (Build_Setoid (sigma f : |A ==> B|, IsBijection f)
+  (fun f g => FunctionEquivalence (projT1 f) (projT1 g))
+).
+apply Build_IsEquivalence.
+- intros. destruct a. simpl. setoid_refl (A ==> B).
+- intros. destruct a. destruct b. simpl in *. setoid_symm (A ==> B). assumption.
+- intros. destruct a. destruct b. destruct c. simpl in *. setoid_tran (A ==> B) x0; assumption.
+Defined.
 
 
 
