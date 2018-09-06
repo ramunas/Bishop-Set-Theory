@@ -586,6 +586,22 @@ apply (BijectionInversionIsBijection f p).
 Defined.
 
 
+Lemma BijectionInversionLeftCancelable
+  {A B : Setoid} 
+  (f : |A ==> B|) (p: IsBijection f):
+  forall x, BijectionInversion f p ` (f ` x) ==[A] x.
+intros.
+simpl. destruct p. simpl. destruct i0. simpl. apply i. assumption.
+Defined.
+
+Lemma BijectionInversionRightCancelable
+  {A B : Setoid} 
+  (f : |A ==> B|) (p: IsBijection f):
+  forall x, (f ` (BijectionInversion f p ` x)) ==[B] x.
+intros. simpl. destruct p. simpl. destruct i0. simpl. assumption.
+Defined.
+
+
 Lemma BijectionToIso {A B : Setoid}  (f : |A ==> B|) (p: IsBijection f) : IsIso f.
 unfold IsIso.
 exists (BijectionInversion f p).
@@ -784,11 +800,100 @@ Definition IsSubsetFinite {A : Setoid} (S : Subset A) : Type :=
 Definition IsSubsetDecidable {A : Setoid} (S : Subset A) : Type :=
   forall a, Decidable (a ::[A] S).
 
-(* TODO:
+Lemma FinSetRec
+  (n : nat)
+  (P : nat -> Type)
+  (q: forall x: nat, LessThan x n -> P x):
+  forall y: |FinSetoid n|, P (FinSetoidToNat y).
+intros.
+simpl in y.
+destruct y.
+simpl.
+apply q.
+assumption.
+Defined.
+
+Lemma FinSubsetDecidable {n : nat}:
+  IsSubsetDecidable (FinOrdSubset n).
+unfold IsSubsetDecidable. simpl.
+unfold IsMemberOfSubset. simpl.
+induction n.
+- intros. right. intros. destruct H. destruct x. unfold LessThan in l.
+  apply (PositiveIsNotLessThanOrEqualToZero x). assumption.
+- induction a.
+  + specialize (IHn 0). destruct IHn.
+    * left. destruct s. destruct x. simpl in i.
+      assert (LessThan x (S n)).
+      unfold LessThan in *. apply LessThanOrEqualSucc. assumption.
+      exists (existT _ x H). simpl. assumption.
+    * left.
+      assert (LessThan 0 (S n)). unfold LessThan.
+      apply (LessThanOrEqualPreservedBySucc 0 n).
+      apply ZeroIsTheLeast.
+      exists (existT _ 0 H). simpl. reflexivity.
+  + destruct (IHn a).
+    { (* a < n *) destruct s. destruct x. simpl in i. rewrite -> i in l.
+      (* a + 1 < n + 1 *) assert (LessThan (S a) (S n)).
+      unfold LessThan in *.
+      apply LessThanOrEqualPreservedBySucc in l. assumption.
+      left. exists (existT _ (S a) H). simpl. reflexivity.
+    } {
+      (* not (a < n) -> n <= a *)
+      assert (not (LessThan a n)).
+      intros. apply e. exists (existT _ a H). simpl. reflexivity.
+      unfold LessThan in H. apply LessThanInvert in H.
+      right.
+      intros. destruct H0. destruct x. simpl in i. rewrite i in l.
+      unfold LessThan in l. apply LessThanOrEqualPreservedBySucc in l.
+      assert (LessThanOrEqual (S a) a).
+      apply (LessThanOrEqualTransitive (S a) n a); assumption.
+      apply LessThanIrreflexive in H0. contradiction.
+    }
+Defined.
+
+
+
 Lemma FiniteSubsetMembershipDecidable {A : Setoid}
   (q : IsSetoidDiscrete A)
-  (S : Subset A) (p : IsSubsetFinite S) :
-  IsSubsetDecidable S.
+  (U : Subset A) (p : IsSubsetFinite U) :
+  IsSubsetDecidable U.
+unfold IsSubsetDecidable.
+unfold IsSubsetFinite in p. unfold IsSetoidFinite in p. destruct p.
+destruct s as [f fbij].
+
+assert ((forall a: |A|, 
+  Decidable (sigma x: |FinSetoid x|, 
+      Subset_Injection A U ` ((BijectionInversion f fbij) ` x) ==[A] a)) ->
+  (forall a : | A |, Decidable (a ::[ A] U))
+  ).
+
+intros.
+
+unfold IsMemberOfSubset.
+specialize (X a).
+unfold Decidable in X. unfold Decidable. destruct X. destruct s.
+- left. exists (BijectionInversion f fbij ` x0). assumption.
+- right. intros. apply e. destruct X.
+  exists (f ` x0).
+  apply (FunctionCong x0 (BijectionInversion f fbij ` (f ` x0))).
+  setoid_symm (Subset_Setoid A U).
+  apply BijectionInversionLeftCancelable. assumption.
+
+- apply X. intros.
+  induction x.
+  (* FinSetoid 0 is an empty type *)
+  + right. intros. destruct X0. simpl in x. destruct x. 
+    unfold LessThan in l.
+    apply (PositiveIsNotLessThanOrEqualToZero x). assumption.
+  + assert (|FinSetoid (S x)|).
+
+
+
+ exists x0.
+ exists (BijectionInversion f fbij ` x0). assumption.
+
+
+
 unfold IsSubsetDecidable.
 intros. destruct p.  destruct s as [f fbij].
 unfold IsMemberOfSubset.
@@ -797,13 +902,12 @@ unfold Decidable in *.
 assert (inv : | FinSetoid x ==> Subset_Setoid A S|).
 apply (BijectionInversion f fbij).
 
-induction x.
-- unfold FinSetoid in inv. simpl in inv. destruct inv.
 
 Print nat_rect.
 
 ads
-*)
+
+
 
 Definition EnumerateSingletonSubset {A : Setoid} (a : |A|) : 
   | Subset_Setoid A (Singleton a) ==> FinSetoid 1|.
@@ -831,7 +935,7 @@ split.
   inversion p. reflexivity. apply ZeroIsTheLeast in H1. discriminate H1.
 Qed.
 
-(* TODO:
+(*
 Lemma UnionOfFiniteSubsetsIsFinite {A : Setoid}
   (S U : Subset A) (p : IsSubsetFinite S) (q: IsSubsetFinite U):
   IsSubsetFinite (SubsetUnion S U).
@@ -845,7 +949,6 @@ apply (Build_Function (Subset_Setoid A (SubsetUnion S U)) (FinSetoid (x + x0))
   (fun x => )
 ).
 intros.
-*)
 
 
 Definition BijectionSetoid (A B : Setoid) : Setoid.
