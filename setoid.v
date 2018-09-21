@@ -403,6 +403,22 @@ Definition IsChoiceSetoid (S : Setoid) : Type :=
     IsSurjection f -> HasRightInverse f.
 
 
+Definition SigmaSetoid (X : Setoid) (P : Property X) : Setoid.
+  apply (Build_Setoid (sigT (P.(Property_Prop X)))
+        (fun a b =>
+          projT1 a ==[X] projT1 b
+        )).
+  apply Build_IsEquivalence; intros.
+  - setoid_refl X.
+  - setoid_symm X. assumption.
+  - setoid_tran X (projT1 b) ; assumption.
+Defined.
+
+Definition SigmaSetoid_Pr1 {X : Setoid} {P : Property X}: |SigmaSetoid X P ==> X|.
+  apply (Build_Function (SigmaSetoid X P) X (fun x => projT1 x)).
+  intros. simpl in X0. assumption.
+Defined.
+
 
 Record Subset (A: Setoid) := {
   Subset_Setoid: Setoid ;
@@ -411,11 +427,107 @@ Record Subset (A: Setoid) := {
 }.
 
 
+Definition SubsetComprehension (A : Setoid) (P : Property A) : Subset A.
+  apply (Build_Subset A (SigmaSetoid A P) SigmaSetoid_Pr1).
+  unfold IsInjection. intros.
+  simpl in X.
+  simpl.
+  assumption.
+Defined.
 
 Definition IsMemberOfSubset {A : Setoid} (a : |A|) (S: Subset A) : Type :=
   sigma x : |Subset_Setoid _ S|, ((Subset_Injection _ S)` x) ==[A] a.
 
 Notation "a ::[ A ] S" := (@IsMemberOfSubset A a S) (at level 66, no associativity).
+
+Lemma SubsetIsMemberOfExtensional {A : Setoid} (S : Subset A) (a b : |A|):
+  a ==[A] b -> a ::[A] S -> b ::[A] S.
+intros.
+unfold IsMemberOfSubset in *.
+destruct X0.
+assert (Subset_Injection A S ` x ==[A] b).
+setoid_tran A a; assumption.
+exists x. assumption.
+Defined.
+
+Definition IsMemberOfSubsetSetoid
+  {A : Setoid} (a : |A|) (S: Subset A) : Setoid.
+apply (SigmaSetoid (Subset_Setoid _ S)).
+apply (Build_Property _ (fun x => ((Subset_Injection _ S) ` x) ==[A] a)).
+intros.
+apply (FunctionCong a0 b a (Subset_Injection A S)); assumption.
+Defined.
+
+Lemma SubsetIsMemberOfSetoidExtensional {A : Setoid} (S : Subset A) (a b : |A|):
+  a ==[A] b -> |IsMemberOfSubsetSetoid a S| -> |IsMemberOfSubsetSetoid b S|.
+apply SubsetIsMemberOfExtensional.
+Defined.
+
+Definition SubsetOfSubsetMembers
+  {A : Setoid} (S : Subset A) : Subset A.
+apply (SubsetComprehension).
+apply (Build_Property _ (fun x => |IsMemberOfSubsetSetoid x S|)).
+apply SubsetIsMemberOfSetoidExtensional.
+Defined.
+
+Lemma IsMemberOfSubsetTypeToSetoid
+{A : Setoid} (a : |A|) (S: Subset A) (p: a ::[A] S) : 
+  |IsMemberOfSubsetSetoid a S|.
+apply p.
+Defined.
+
+Definition SubsetMembershipWitness
+  {A : Setoid} (a : |A|) (S: Subset A):
+  |IsMemberOfSubsetSetoid a S ==> Subset_Setoid A S|.
+apply SigmaSetoid_Pr1.
+Defined.
+
+Lemma SubsetMembershipWitnessExtensional {A : Setoid} (a b : |A|)  (S: Subset A):
+  a ==[A] b -> forall x y,
+  SubsetMembershipWitness a S ` x ==[Subset_Setoid A S]
+  SubsetMembershipWitness b S ` y.
+intros.
+simpl.
+destruct x. destruct y. simpl in *.
+pose (LHS := Subset_Injection A S ` x).
+assert (LHS ==[ A] b). setoid_tran A a. assumption. assumption.
+assert (LHS ==[A] Subset_Injection A S ` x0). setoid_tran A b. assumption. setoid_symm A. assumption.
+apply (Subset_InjectionIsInjection).
+assumption.
+Defined.
+
+Lemma SubsetMembershipWitnessIsInjection
+  {A : Setoid} (a : |A|) (S: Subset A): 
+  IsInjection (SubsetMembershipWitness a S).
+unfold IsInjection. intros. cbn in X. destruct a0. destruct b. simpl in *.
+assumption.
+Defined.
+
+
+Lemma SubsetMembershipWitnessIsInjectionWithTransfer
+  {A : Setoid} (S: Subset A):
+  forall a b x y, 
+  SubsetMembershipWitness a S ` x ==[Subset_Setoid A S]
+  SubsetMembershipWitness b S ` y ->
+  sigma p: a ==[A] b, 
+  (SubsetIsMemberOfSetoidExtensional S a b p x) ==[IsMemberOfSubsetSetoid b S] y.
+intros.
+destruct x. destruct y. simpl in *.
+pose (LHS := a).
+assert (LHS ==[A] Subset_Injection A S ` x). setoid_symm A ; assumption.
+assert (Subset_Injection A S ` x ==[A] Subset_Injection A S ` x0).
+  apply (Function_MapIsExtensional _ _ (Subset_Injection _ _)). assumption.
+assert (LHS ==[A] Subset_Injection A S ` x0).
+  setoid_tran A (Subset_Injection A S ` x); assumption.
+assert (LHS ==[A] b). setoid_tran A (Subset_Injection A S ` x0); assumption.
+exists X3.
+assumption.
+Defined.
+
+
+
+Definition IsSubsetDecidable {A : Setoid} (S : Subset A) : Type :=
+  forall a, Decidable (a ::[A] S).
 
 Definition IsSubsetOf {A : Setoid} (X Y : Subset A) : Type :=
   forall a : |A|, a ::[A] X -> a ::[A] Y.
@@ -445,32 +557,6 @@ intros. simpl in *. assumption.
 Defined.
 
 
-Definition SigmaSetoid (X : Setoid) (P : Property X) : Setoid.
-  apply (Build_Setoid (sigT (P.(Property_Prop X)))
-        (fun a b =>
-          projT1 a ==[X] projT1 b
-        )).
-  apply Build_IsEquivalence; intros.
-  - setoid_refl X.
-  - setoid_symm X. assumption.
-  - setoid_tran X (projT1 b) ; assumption.
-Defined.
-
-Definition SigmaSetoid_Pr1 {X : Setoid} {P : Property X}: |SigmaSetoid X P ==> X|.
-  apply (Build_Function (SigmaSetoid X P) X (fun x => projT1 x)).
-  intros. simpl in X0. assumption.
-Defined.
-
-
-Definition SubsetComprehension (A : Setoid) (P : Property A) : Subset A.
-  apply (Build_Subset A (SigmaSetoid A P) SigmaSetoid_Pr1).
-  unfold IsInjection. intros.
-  simpl in X.
-  simpl.
-  assumption.
-Defined.
-
-
 Lemma BetaSubsetMembership {A : Setoid} {P : Property A}:
   forall a : |A|,
   (a ::[A] (SubsetComprehension A P)) <--> P.(Property_Prop _) a.
@@ -483,6 +569,62 @@ intros. split.
   simpl.
   exists (existT _ a X). simpl. setoid_refl A.
 Qed.
+
+Definition SubsetOfSubsetInjection
+  {A : Setoid} (X Y : Subset A)
+  (incl : forall a : | A |, a ::[ A] X -> a ::[ A] Y):
+  | Subset_Setoid A X ==> Subset_Setoid A Y |.
+apply (Build_Function _ _
+  (fun x =>
+  SubsetMembershipWitness _ _ `
+       ( incl (Subset_Injection A X ` x) 
+             (existT _ x
+             (Equivalence_Reflexivity (Setoid_Equivalence A) (Setoid_IsEquivalence A)
+              (Subset_Injection A X ` x)
+              ) ) )
+  )
+).
+intros.
+apply SubsetMembershipWitnessExtensional.
+apply (Function_MapIsExtensional _ _ (Subset_Injection A X)).
+assumption.
+Defined.
+
+Lemma SubsetOfSubsetInjectionIsInjection
+  {A : Setoid} (X Y : Subset A)
+  (incl : forall a : | A |, a ::[ A] X -> a ::[ A] Y):
+  IsInjection (SubsetOfSubsetInjection X Y incl).
+unfold IsInjection.
+intros.
+apply SubsetMembershipWitnessIsInjectionWithTransfer in X0.
+destruct X0.
+apply (Subset_InjectionIsInjection _ _).
+assumption.
+Defined.
+
+
+Lemma IsSubsetOfInjection {A : Setoid}
+  (X Y : Subset A): 
+  IsSubsetOf X Y <--> sigma f : | Subset_Setoid A X ==> Subset_Setoid A Y|,
+                      IsInjection f &
+                      Subset_Injection A X ==[ _ ]
+                      (f |> Subset_Injection A Y).
+split.
+- unfold IsSubsetOf. intro incl.
+  exists (SubsetOfSubsetInjection X Y incl).
+  split.
+  + apply SubsetOfSubsetInjectionIsInjection.
+  + intros. simpl.
+
+
+- intros. unfold IsSubsetOf. unfold IsMemberOfSubset. intros.
+  destruct X0 as [f]. destruct p as [finj fagr].
+  destruct X1.
+  exists (f ` x).
+  specialize (fagr x).
+  setoid_tran A (Subset_Injection A X ` x).
+  setoid_symm A. assumption. assumption.
+Defined.
 
 
 Definition IsSingleton {A : Setoid} (S : Subset A) : Type :=
@@ -523,6 +665,7 @@ destruct X0.
   setoid_tran A a; assumption.
 Defined.
 
+
 Definition SubsetIntersection {A : Setoid} (S U : Subset A) : Subset A.
 apply (SubsetComprehension A).
 apply (Build_Property A (fun a => a ::[A] S & a ::[A] U)).
@@ -532,6 +675,29 @@ intros. destruct X0. split.
 - destruct i0. unfold IsMemberOfSubset. exists x.
   setoid_tran A a; assumption.
 Defined.
+
+Definition SubsetComplement {A : Setoid}
+  (S : Subset A): Subset A.
+apply SubsetComprehension.
+apply (Build_Property _ (fun x => not (x ::[A] S))).
+intros. 
+apply X0.
+apply (SubsetIsMemberOfExtensional S b a).
+setoid_symm A; assumption. assumption.
+Defined.
+
+Definition SubsetSubstract {A : Setoid}
+  (S U : Subset A): Subset A.
+apply SubsetComprehension.
+apply (Build_Property _ (fun a => a ::[A] S & not (a ::[A] U))).
+intros. destruct X0.
+split.
+- apply (SubsetIsMemberOfExtensional _ a b); assumption.
+- intros. apply e. apply (SubsetIsMemberOfExtensional _ b a).
+  setoid_symm A. assumption. assumption.
+Defined.
+
+
 
 Definition FunctionInverseImage {A B : Setoid} (S : Subset B) (f : |A ==> B|) : Subset A.
 apply (SubsetComprehension A).
@@ -797,9 +963,6 @@ Definition IsSetoidFinite (S: Setoid): Type :=
 Definition IsSubsetFinite {A : Setoid} (S : Subset A) : Type :=
   IsSetoidFinite (Subset_Setoid A S).
 
-Definition IsSubsetDecidable {A : Setoid} (S : Subset A) : Type :=
-  forall a, Decidable (a ::[A] S).
-
 Lemma FinSetRec
   (n : nat)
   (P : nat -> Type)
@@ -852,6 +1015,190 @@ induction n.
 Defined.
 
 
+Lemma SigmaDistributesOverDisjunction:
+  forall A: Type,
+  forall P Q : A -> Type,
+  (sigma x : A , P x) + (sigma y : A , Q y) <-->
+  sigma x : A, (P x + Q x) % type.
+intros. split.
+- intros. destruct X.
+  + destruct s. exists x. left. assumption.
+  + destruct s. exists x. right. assumption.
+- intros. destruct X. destruct s.
+  + left. exists x. assumption.
+  + right. exists x. assumption.
+Defined.
+
+Definition InjectInFinSetoid (n : nat) : | FinSetoid n| -> | FinSetoid (S n) | :=
+fun x => match x with existT _ n p => existT _ n (LessThanOrEqualSucc _ _ p) end.
+
+
+Definition InjectionFinSetoid {n : nat} : | FinSetoid n ==> FinSetoid (S n) |.
+apply (Build_Function (FinSetoid n) (FinSetoid (S n)) (InjectInFinSetoid n)).
+intros.
+simpl.
+destruct a. destruct b. simpl in *. assumption.
+Defined.
+
+Lemma InjectionFinSetoidIsInjection {n : nat}:
+  IsInjection (@InjectionFinSetoid n).
+unfold IsInjection.
+intros. destruct a. destruct b. simpl in *. assumption.
+Defined.
+
+Lemma InjectionFinSetoidMax {n : nat}:
+  forall x : |FinSetoid n|,
+  (LessThan (FinSetoidToNat (@InjectionFinSetoid n ` x)) n).
+intros. destruct x. simpl in *. assumption.
+Defined.
+
+
+Definition ShrinkPropertyDomainUnderlying (n : nat) (P : |FinSetoid (S n)| -> Type):
+  (|FinSetoid n| -> Type).
+simpl in *.
+intros. apply P.
+destruct H. apply LessThanOrEqualSucc in l.
+exists x. assumption.
+Defined.
+
+Definition ShrinkPropertyDomain {n : nat}:
+  Property (FinSetoid (S n)) -> Property (FinSetoid n).
+intro P. destruct P as [P Pext].
+apply (Build_Property (FinSetoid n) (ShrinkPropertyDomainUnderlying n P)).
+intros.
+specialize (Pext (InjectionFinSetoid ` a)).
+specialize (Pext (InjectionFinSetoid ` b)).
+apply Pext.
+apply (Function_MapIsExtensional _ _ InjectionFinSetoid). assumption.
+assumption.
+Defined.
+
+Definition DecidableProperty {A : Setoid} (P : Property A) :=
+  forall a, Decidable (Property_Prop _ P a).
+
+Lemma ShrinkingPreservesDecidability {n : nat}
+  (P : Property (FinSetoid (S n)))
+  (q : DecidableProperty P):
+  DecidableProperty (ShrinkPropertyDomain P).
+  unfold DecidableProperty in *.
+  intros.
+  specialize (q (InjectionFinSetoid ` a)).
+  destruct q.
+  - left. destruct P as [P Pext]. simpl in *. assumption.
+  - right. intros. apply e. destruct P as [P Pext]. simpl in *. assumption.
+Defined.
+
+Lemma FinSetPropertyAdd { n : nat }
+  (P : Property (FinSetoid (S n)))
+  (p : forall x, Property_Prop _ (ShrinkPropertyDomain P) x)
+  (q : Property_Prop _ P (NatToFinSetoid n (LessThanOrEqualRefl (S n)))):
+  forall x, Property_Prop _ P x.
+intros.
+destruct x. simpl in p0. simpl.
+unfold LessThan in p0.
+assert ((LessThan (S x) (S n)) + ((S x) == (S n))).
+apply DeconstructLessThanOrEqual. assumption.
+destruct H.
+- apply LessThanOrEqualPreservedBySucc in l.
+  specialize (p (existT _ x l)). simpl in p.
+  destruct P as [P Pext].
+  simpl in p. simpl. 
+  apply (Pext (InjectionFinSetoid ` (existT _ x l)) (existT _ x p0)).
+  simpl. reflexivity.
+  simpl. assumption.
+- apply NatSucc in i.
+  destruct P as [P Pext].
+  simpl in q. simpl.
+  apply (Pext (NatToFinSetoid n (LessThanOrEqualRefl (S n))) (existT _ x p0)).
+  simpl. auto.
+  assumption.
+Defined.
+
+
+Lemma FinSetPropForallDecidable
+  { n : nat}
+  (P : Property (FinSetoid n))
+  (p : DecidableProperty P):
+  Decidable (forall y: | FinSetoid n |, Property_Prop _ P y).
+induction n.
+- destruct P as [P Pext].
+  assert (not | FinSetoid 0 |).
+  intros. simpl in H. destruct H. apply LessThanZeroFalse in l. assumption. 
+  left. intros. contradiction.
+- specialize (IHn (ShrinkPropertyDomain P) (ShrinkingPreservesDecidability P p)).
+  destruct IHn.
+  + unfold DecidableProperty in p.
+    specialize (p (NatToFinSetoid n (LessThanOrEqualRefl (S n)))).
+    destruct p.
+    * left. apply FinSetPropertyAdd; assumption.
+    * right. intro. apply e. apply X.
+  + right. intro. apply e. intros.
+    specialize (X ( InjectionFinSetoid ` y)).
+    destruct P as [P Pext].
+    simpl in X. simpl. assumption.
+Defined.
+
+
+Lemma FinSetPropSigmaDecidable
+  { n : nat}
+  (P : Property (FinSetoid n))
+  (p : DecidableProperty P):
+  Decidable (sigma y: | FinSetoid n |, Property_Prop _ P y).
+induction n.
+- destruct P as [P Pext].
+  assert (not | FinSetoid 0 |).
+  intros. simpl in H. destruct H. apply LessThanZeroFalse in l. assumption.
+  right. intros. apply H. destruct X. assumption.
+- specialize (IHn (ShrinkPropertyDomain P) (ShrinkingPreservesDecidability P p)).
+  destruct IHn.
+  + destruct s. left.
+    exists (InjectionFinSetoid ` x).
+    destruct P as [P Pext]. simpl. simpl in p0. assumption.
+  + unfold DecidableProperty in p.
+    destruct (p (NatToFinSetoid n (LessThanOrEqualRefl _))).
+    * left. exists (NatToFinSetoid n (LessThanOrEqualRefl _)). assumption.
+    * right.
+      intros.
+      destruct X. destruct x. simpl in p1. simpl in p0.
+      assert ((LessThan (S x) (S n)) + (S x == S n)).
+      apply DeconstructLessThanOrEqual. apply p1.
+      destruct H. {
+        unfold LessThan in l.
+        apply LessThanOrEqualPreservedBySucc in l.
+        apply e.
+        exists (existT _ x l). simpl.
+        destruct P as [P Pext]. simpl in *.
+        apply (Pext (existT _ x p1) (InjectionFinSetoid ` (existT _ x l))).
+        simpl. reflexivity. assumption.
+      } {
+        apply e0.
+        destruct P as [P Pext]. simpl in *.
+        apply (Pext (existT (fun x : nat => LessThan x (S n)) x p1) (NatToFinSetoid n (LessThanOrEqualRefl (S n)))).
+        simpl. apply NatSucc. assumption. assumption.
+      }
+Defined.
+
+(*
+Definition MyProp : Property (FinSetoid 2) .
+apply (Build_Property (FinSetoid 2) (fun x =>
+  match x with
+  existT _ n _ => n == 0
+  end
+)).
+intros. destruct a.  destruct b.  simpl in *.
+transitivity x; auto.
+Defined.
+
+Lemma MyPropDecidable: DecidableProperty MyProp.
+unfold DecidableProperty.
+intros. destruct a. simpl in *.
+apply NatIdentityDecidable.
+Defined.
+
+Eval cbv in Check2 MyProp MyPropDecidable.
+*)
+
+
 
 Lemma FiniteSubsetMembershipDecidable {A : Setoid}
   (q : IsSetoidDiscrete A)
@@ -866,9 +1213,7 @@ assert ((forall a: |A|,
       Subset_Injection A U ` ((BijectionInversion f fbij) ` x) ==[A] a)) ->
   (forall a : | A |, Decidable (a ::[ A] U))
   ).
-
 intros.
-
 unfold IsMemberOfSubset.
 specialize (X a).
 unfold Decidable in X. unfold Decidable. destruct X. destruct s.
@@ -878,34 +1223,26 @@ unfold Decidable in X. unfold Decidable. destruct X. destruct s.
   apply (FunctionCong x0 (BijectionInversion f fbij ` (f ` x0))).
   setoid_symm (Subset_Setoid A U).
   apply BijectionInversionLeftCancelable. assumption.
+- apply X. intros. 
 
-- apply X. intros.
-  induction x.
-  (* FinSetoid 0 is an empty type *)
-  + right. intros. destruct X0. simpl in x. destruct x. 
-    unfold LessThan in l.
-    apply (PositiveIsNotLessThanOrEqualToZero x). assumption.
-  + assert (|FinSetoid (S x)|).
+refine (let P := _ : Property (FinSetoid x) in _).
+Unshelve. Focus 2.
+apply (Build_Property _ 
+  (fun x => Subset_Injection A U ` (BijectionInversion f fbij ` x) ==[ A] a)).
+intros.
+apply (FunctionCong (BijectionInversion f fbij ` a0) (BijectionInversion f fbij ` b)).
+apply (Function_MapIsExtensional _ _ (BijectionInversion _ _)); assumption.
+assumption.
 
+assert (DecidableProperty P) as Pdec.
+unfold DecidableProperty.
+intros. unfold IsSetoidDiscrete in q.
+simpl.
+apply q.
 
+apply (FinSetPropSigmaDecidable P Pdec).
+Defined.
 
- exists x0.
- exists (BijectionInversion f fbij ` x0). assumption.
-
-
-
-unfold IsSubsetDecidable.
-intros. destruct p.  destruct s as [f fbij].
-unfold IsMemberOfSubset.
-unfold IsSetoidDiscrete in q.
-unfold Decidable in *.
-assert (inv : | FinSetoid x ==> Subset_Setoid A S|).
-apply (BijectionInversion f fbij).
-
-
-Print nat_rect.
-
-ads
 
 
 
@@ -935,7 +1272,463 @@ split.
   inversion p. reflexivity. apply ZeroIsTheLeast in H1. discriminate H1.
 Qed.
 
-(*
+
+Definition SubsetAdd {A : Setoid}
+  (S : Subset A) (a : |A|) : Subset A.
+apply SubsetComprehension.
+apply (Build_Property _ (fun x => sum (x ::[A] S) (x ==[A] a))).
+intros. destruct X0.
+- left. apply (SubsetIsMemberOfExtensional _ a0 b); assumption.
+- right. setoid_tran A a0. setoid_symm A; assumption. assumption.
+Defined.
+
+Lemma SubsetAddIdem
+  { A : Setoid } (S : Subset A) (a : |A|) (p : a ::[A] S):
+  IsSubsetEquiv S (SubsetAdd S a).
+unfold IsSubsetEquiv. unfold IsSubsetOf. split.
+- intros. simpl.
+  apply BetaSubsetMembership. simpl. left. assumption.
+- intros. apply BetaSubsetMembership in X. simpl in X.
+  destruct X. assumption.
+  apply (SubsetIsMemberOfExtensional _ a a0).
+  setoid_symm A; assumption. assumption.
+Defined.
+
+Lemma SubsetAddCharecterisation
+  { A : Setoid } (S : Subset A) (a : |A|):
+  forall b, b ::[A] SubsetAdd S a <--> (b ::[A] S) + (b ==[A] a).
+split.
+- intros. apply BetaSubsetMembership in X. simpl in X. assumption.
+- intros. apply BetaSubsetMembership. simpl. assumption.
+Defined.
+
+
+Definition PreInclusion
+  { A : Setoid } (S : Subset A) (a : |A|) (p : a ::[A] S)
+  (x : |Subset_Setoid A S|) : |Subset_Setoid A (SubsetAdd S a)|.
+simpl.
+exists (Subset_Injection A S ` x).
+left. unfold IsMemberOfSubset.
+exists x. setoid_refl A.
+Defined.
+
+
+Definition Inclusion
+  { A : Setoid } (S : Subset A) (a : |A|) (p : a ::[A] S):
+  |Subset_Setoid A S ==> Subset_Setoid A (SubsetAdd S a)|.
+apply (Build_Function _ _ (PreInclusion S a p)).
+intros.
+simpl. apply (Function_MapIsExtensional _ _ (Subset_Injection _ _)).
+assumption.
+Defined.
+
+Lemma InclusionBijection
+  { A : Setoid } (S : Subset A) (a : |A|) (p : a ::[A] S):
+  IsBijection (Inclusion S a p).
+split.
+- unfold IsInjection. intros. simpl in X.
+  apply (Subset_InjectionIsInjection _ _). assumption.
+- unfold IsSurjection. intros. simpl.
+  destruct b as [b]. simpl in p0. simpl.
+  destruct p0.
+  * assumption.
+  * destruct p. exists x. setoid_tran A a. assumption. setoid_symm A. assumption.
+Defined.
+
+
+Definition PreExtendBijection
+  {A : Setoid}
+  (U : Subset A)
+  (n : nat)
+  (f : | Subset_Setoid A U ==> FinSetoid n |)
+  (fbij : IsBijection f)
+  (a : |A|)
+  (np : not a ::[ A] U):
+  |Subset_Setoid A (SubsetAdd U a)| -> |FinSetoid (S n)|. 
+intro x.
+destruct x. simpl in p. destruct p.
+- destruct i. apply (InjectionFinSetoid ` (f ` x0)).
+- apply (NatToFinSetoid n). apply LessThanOrEqualRefl.
+Defined.
+
+
+Definition ExtendBijection
+  {A : Setoid}
+  (U : Subset A)
+  (n : nat)
+  (f : | Subset_Setoid A U ==> FinSetoid n |)
+  (fbij : IsBijection f)
+  (a : |A|)
+  (np : not a ::[ A] U):
+  |Subset_Setoid A (SubsetAdd U a) ==> FinSetoid (S n)|.
+apply (Build_Function _ _ (PreExtendBijection U n f fbij a np)).
+destruct a0. destruct b. simpl in *. destruct p.
+- intros. destruct p0.
+  * destruct i. destruct i0. 
+    assert (f ` x1 ==[ FinSetoid n] f ` x2).
+    apply (Function_MapIsExtensional _ _ f).
+    assert (Subset_Injection A U ` x1  ==[ A] x0).
+      setoid_tran A x. assumption. assumption.
+    apply (Subset_InjectionIsInjection).
+      setoid_tran A x0. assumption. setoid_symm A. assumption.
+    assert (InjectInFinSetoid n (f ` x1) ==[FinSetoid (S n)]
+            InjectInFinSetoid n (f ` x2)).
+    apply (Function_MapIsExtensional _ _ (InjectionFinSetoid)). assumption.
+    simpl in X1. assumption.
+  * assert (a ::[A] U).
+    apply (SubsetIsMemberOfExtensional _ x a).
+    setoid_tran A x0. assumption. assumption. assumption.
+    contradiction.
+- intros. destruct p0.
+  * assert (a ::[A] U). apply (SubsetIsMemberOfExtensional _ x0 a).
+    setoid_tran A x. setoid_symm A. assumption. assumption. assumption.
+    contradiction.
+  * simpl. reflexivity.
+Defined.
+
+Lemma ExtendBijectionIsBijection
+  {A : Setoid}
+  (U : Subset A)
+  (n : nat)
+  (f : | Subset_Setoid A U ==> FinSetoid n |)
+  (fbij : IsBijection f)
+  (a : |A|)
+  (np : not a ::[ A] U):
+  IsBijection (ExtendBijection U n f fbij a np).
+split.
+- unfold IsInjection. intros.
+  destruct a0. destruct b. simpl in *.
+  destruct p.
+  * destruct p0.
+    + destruct i. destruct i0.
+      assert (InjectInFinSetoid n (f ` x1) ==[FinSetoid (S n)]
+              InjectInFinSetoid n (f ` x2)). assumption.
+      apply InjectionFinSetoidIsInjection in X0.
+      apply (fst fbij) in X0. (* f is injection *)
+      assert (Subset_Injection A U ` x1 ==[A] Subset_Injection A U ` x2).
+      apply (Function_MapIsExtensional _ _). assumption.
+      setoid_tran A (Subset_Injection A U ` x1).
+      setoid_symm A. assumption.
+      setoid_tran A (Subset_Injection A U ` x2).
+      assumption. assumption.
+    + destruct i.
+      assert (InjectInFinSetoid n (f ` x1) ==[FinSetoid (S n)] NatToFinSetoid n (LessThanOrEqualRefl (S n))).
+      assumption.
+      assert (forall x, LessThan (FinSetoidToNat (InjectInFinSetoid n (f ` x))) n).
+      intros. apply InjectionFinSetoidMax.
+      specialize (X1 x1).
+      assert ((FinSetoidToNat (InjectInFinSetoid n (f ` x1))) == n).
+      assumption.
+      rewrite H in X1.
+      apply LessThanIrreflexive in X1. contradiction.
+  * destruct p0.
+    + destruct i. 
+      assert (InjectInFinSetoid n (f ` x1) ==[FinSetoid (S n)] NatToFinSetoid n (LessThanOrEqualRefl (S n))).
+      setoid_symm (FinSetoid (S n)). assumption.
+      assert (LessThan (FinSetoidToNat (InjectInFinSetoid n (f ` x1))) n).
+      apply InjectionFinSetoidMax.
+      assert ((FinSetoidToNat (InjectInFinSetoid n (f ` x1))) == n).
+      assumption.
+      rewrite H0 in H.
+      apply LessThanIrreflexive in H. contradiction.
+    + setoid_tran A a. assumption. setoid_symm A. assumption.
+- unfold IsSurjection.
+  intros. destruct b. simpl in *.
+  apply DeconstructLessThanOrEqual in p.
+  destruct p.
+  + apply LessThanOrEqualPreservedBySucc in l.
+    pose (Subset_Injection A U ` ((BijectionInversion f fbij) ` (NatToFinSetoid x l))).
+    assert (s ::[A] U).
+    unfold IsMemberOfSubset.
+    exists (BijectionInversion f fbij ` NatToFinSetoid x l).
+    setoid_refl A.
+
+    exists (existT _ s (inl _ X)).
+    simpl.
+    destruct X.
+    apply Subset_InjectionIsInjection in s0.
+    assert (f ` x0 ==[FinSetoid n] NatToFinSetoid x l).
+    apply (FunctionCong (BijectionInversion f fbij ` NatToFinSetoid x l) x0).
+    setoid_symm (Subset_Setoid A U) . assumption.
+    apply BijectionInversionRightCancelable.
+
+    assert (LessThan x (S n)). unfold LessThan. apply LessThanOrEqualSucc. assumption.
+    assert (InjectInFinSetoid n (f ` x0) ==[FinSetoid (S n)] NatToFinSetoid x H).
+
+    apply (FunctionCong 
+       (NatToFinSetoid x l) 
+        (f ` x0)
+      _
+      InjectionFinSetoid
+    ).
+    setoid_symm (FinSetoid n); assumption.
+    simpl. reflexivity.
+
+    assumption.
+  + assert (a ==[A] a). setoid_refl A.
+    exists (existT _ a (inr _ X)).
+    simpl. apply NatSucc. symmetry. assumption.
+Defined.
+
+
+Lemma FiniteSubsetAddIsFinite { A : Setoid }
+  (q : IsSetoidDiscrete A)
+  (S : Subset A) (p : IsSubsetFinite S) (a : |A|):
+  IsSubsetFinite (SubsetAdd S a).
+unfold IsSubsetFinite in *.
+unfold IsSetoidFinite in *.
+destruct (FiniteSubsetMembershipDecidable q S p a).
+- destruct p.
+  exists x. destruct s.
+  exists ((BijectionInversion (Inclusion S a i) (InclusionBijection S a i)) |> x0).
+  apply FunctionBijectionCompositionIsBijection.
+  * apply BijectionInversionIsBijection.
+  * assumption.
+- (* Define a bijection that assigns and index to the new element 'a'. *)
+  destruct p. destruct s.
+  exists (Datatypes.S x).
+  exists (ExtendBijection S x x0 i a e).
+  apply (ExtendBijectionIsBijection).
+Defined.
+
+Lemma FinSetInd
+  (n : nat)
+  (P : nat -> Type)
+  (p : LessThan 0 n)
+  (q : P 0)
+  (r : forall x, LessThan (S x) n -> P x -> P (S x)):
+  forall x, LessThan x n -> P x.
+induction x.
+- intuition.
+- intros. specialize (r x H). apply LessThanOrEqualSubstract in H.
+  specialize (IHx H). specialize (r IHx).
+  assumption.
+Defined.
+
+Fixpoint PreFinSetIterator (A : Type) 
+  (n : nat)
+  (base : A)
+  (succ: forall x, LessThan x n -> A -> A) 
+  (x : nat) : A :=
+match x with
+| 0 => 
+  match LessThanDecidable 0 n with
+  | inl _ p => succ 0 p base
+  | inr _ _ => base
+  end
+| S y =>
+  match LessThanDecidable (S y) n with
+  | inl _ p => PreFinSetIterator A n (succ (S y) p base) succ y
+  | inr _ _ => base
+  end
+end.
+
+Definition FinSetIterator (A : Type) 
+  (n : nat)
+  (base : A)
+  (succ: forall x, LessThan x n -> A -> A) : A :=
+  PreFinSetIterator A n base succ (pred n).
+
+(* Eval compute in (FinSetIterator (list nat) 10 nil (fun x p r => cons x r)). *)
+
+
+Definition FinSetIterator2
+  (A : Type)
+  (n : nat)
+  (base : A)
+  (succ: |FinSetoid n| -> A -> A) : A :=
+FinSetIterator A n base (fun x p a => succ (NatToFinSetoid x p) a).
+
+
+Definition PreAddAll {A : Setoid}
+  (S U : Subset A) (n : nat) (f : | FinSetoid n ==> Subset_Setoid A U |):
+  Subset A :=
+FinSetIterator2 (Subset A) n S
+  (fun x S' => SubsetAdd S' ( Subset_Injection A U ` (f ` x)  )).
+
+
+Definition AddAll
+  {A : Setoid}
+  (S U : Subset A) (p: IsSubsetFinite U): Subset A.
+unfold IsSubsetFinite in p. unfold IsSetoidFinite in p. destruct p. destruct s.
+apply (PreAddAll S U x (BijectionInversion x0 i)).
+Defined.
+
+
+Lemma LessThanOrEqualExists:
+  forall n, sigma m, LessThanOrEqual m n.
+intros. exists n. apply LessThanOrEqualRefl.
+Defined.
+
+Lemma LessThanExists:
+  forall n, (sigma m, LessThan m n) + (n == 0).
+induction n.
+- right. reflexivity.
+- left. exists n. apply LessThanOrEqualRefl.
+Defined.
+
+Lemma AddAllPreservesLeft {A : Setoid}
+  (U W : Subset A) (p: IsSubsetFinite W)
+  (a : |A|) (q : a ::[A] U) : a ::[A] AddAll U W p.
+destruct p as [n f].
+destruct f as [f fbij].
+simpl.
+unfold IsMemberOfSubset.
+
+
+Print FinSetInd.
+destruct p as [n f].
+assert ((sigma m, LessThan m n) + (n == 0)). apply LessThanExists.
+destruct H.
+- simpl. destruct s. destruct n.
+  * apply LessThanZeroFalse in l. contradiction.
+  * destruct f as [f fbij]. cbn.
+    unfold IsMemberOfSubset.
+induction x.
+- simpl. destruct s. cbn. assumption.
+- destruct s. cbn.
+
+
+Lemma AddAllIsUnionLike
+  {A : Setoid}
+  (S U : Subset A)
+  (p : IsSubsetFinite U):
+  forall a, a ::[A] AddAll S U p -> sum (a ::[A] S) (a ::[A] U).
+unfold IsSubsetFinite in p. unfold IsSetoidFinite in p.
+destruct p as [n f]. destruct f as [f fbij]. simpl in *.
+(* pose (BijectionInversion f fbij) as g. *)
+assert ((sigma m, LessThan m n) + (n == 0)).
+apply (LessThanExists n).
+destruct H.
+Focus 2.
+- left.
+  induction n. cbn in X. assumption.
+  discriminate i.
+- destruct s as [m mltn].
+  intros.
+  destruct n.
+  + cbn in X. left. assumption.
+  + cbn in X. simpl.
+
+
+Admitted.
+
+
+
+Lemma X 
+  { A : Setoid }
+  (S U : Subset A)
+  (p: IsSubsetFinite U):
+  (IsSubsetEquiv (SubsetUnion S U) (AddAll S U p)).
+split.
+- unfold IsSubsetOf. intros.
+  apply BetaSubsetMembership in X. simpl in X.
+  destruct X.
+  + unfold IsSubsetFinite in p. unfold IsSetoidFinite in p. destruct p.
+    simpl. 
+    induction x.
+    * cbn. destruct s. assumption.
+    * destruct IHx. cbn.
+
+
+    unfold PreAddAll. unfold FinSetIterator2. unfold FinSetIterator.
+    unfold PreFinSetIterator.
+    cbn.
+    red. 
+    * red.
+
+ simpl.
+ red. destruct i. destruct p. simpl in *. simpl.
+    exists x.
+
+
+
+Lemma FinSetRec2
+  (n : nat)
+  (P : nat -> Type)
+  (p : LessThan 0 n)
+  (q : P 0)
+  (r : forall x, LessThan (S x) n -> P x -> P (S x)):
+  forall x, LessThan x n -> P x.
+induction x.
+- intuition.
+- intros. specialize (r x H). apply LessThanOrEqualSubstract in H.
+  specialize (IHx H). specialize (r IHx).
+  assumption.
+Defined.
+
+Lemma FinSetoidEmptyDomain {A : Setoid}
+  (f : | FinSetoid 0 ==> A |): Empty_set.
+destruct f as [f fext].
+assert (not (LessThan 0 0)).
+apply LessThanIrreflexive.
+assert (|FinSetoid 0| -> Empty_set).
+intros. destruct H0. simpl in p. apply ZeroIsTheLeast in p. discriminate p.
+apply H.
+assert (| FinSetoid 0 |).
+
+
+Lemma LessThanDec :
+  forall n m, LessThan (S n) m -> LessThan n m.
+unfold LessThan. intros. apply LessThanOrEqualSubstract. assumption.
+Defined.
+
+Definition PreAddAll {A : Setoid}
+  (S U : Subset A) (n : nat) (f : | FinSetoid n ==> Subset_Setoid A S |)
+  (x : nat)
+  (p : LessThan x n):
+  Subset A.
+destruct (LessThanDecidable 0 n).
+-
+apply (FinSetRec2
+  n
+  (fun _ => Subset A)
+  l
+  (SubsetAdd U (Subset_Injection A S ` (f ` (NatToFinSetoid 0 l))))
+  (fun x lt W => SubsetAdd W (Subset_Injection A S ` (f ` (NatToFinSetoid x 
+      (LessThanDec x n lt) ))))
+  x p
+).
+- apply LessThanOrEqualInvert in e. destruct e.
+  apply LessThanOrEqualStrictlySmaller in l.
+  + apply LessThanOrEqualPreservedBySucc in l. apply ZeroIsTheLeast in l.
+    rewrite l in e. admit. + assumption.
+
+match x with
+| 0 => SubsetAdd U (Subset_Injection A S ` (f ` (NatToFinSetoid x p)))
+| S y => PreAddAll S (SubsetAdd U (Subset_Injection A S ` (f ` (NatToFinSetoid x p)))) n f y 
+    (LessThanDec y n (TransformProof x y n (identity_refl (Datatypes.S y) x) p))
+end
+.
+
+
+
+
+Lemma TransformProof (x y z : nat) (p: LessThan x z) (q: S y == x): LessThan (S y) z.
+rewrite <- q in p. assumption.
+Defined.
+
+
+Fixpoint PreAddAll {A : Setoid}
+  (S U : Subset A) (n : nat) (f : | FinSetoid n ==> Subset_Setoid A S |)
+  (x : nat)
+  (p : LessThan x n):
+  Subset A :=
+match x with
+| 0 => SubsetAdd U (Subset_Injection A S ` (f ` (NatToFinSetoid x p)))
+| S y => PreAddAll S (SubsetAdd U (Subset_Injection A S ` (f ` (NatToFinSetoid x p)))) n f y 
+    (LessThanDec y n (TransformProof x y n (identity_refl (Datatypes.S y) x) p))
+end
+.
+
+
+
+
+(* TODO: Split up finite set union into its constitutents and use SubsetAdd to give
+  cardinality *)
+
+
+
 Lemma UnionOfFiniteSubsetsIsFinite {A : Setoid}
   (S U : Subset A) (p : IsSubsetFinite S) (q: IsSubsetFinite U):
   IsSubsetFinite (SubsetUnion S U).

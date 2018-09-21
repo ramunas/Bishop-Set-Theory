@@ -291,7 +291,15 @@ inversion l.
 Defined.
 
 
+Lemma LessThanZeroFalse:
+  forall n, not (LessThan n 0).
+intros. unfold LessThan in H. apply ZeroIsTheLeast in H. discriminate H.
+Defined. 
 
+Lemma LessThanDecidable:
+  forall n m, Decidable (LessThan n m).
+unfold LessThan. intros. apply LessThanOrEqualDecidable.
+Defined.
 
 
 
