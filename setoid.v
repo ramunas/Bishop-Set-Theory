@@ -1786,6 +1786,608 @@ apply InjectionToIsSubsetOf.
 apply SubsetAddAllLeftInclusion.
 Defined.
 
+Definition IsSubsetDisjoint {A : Setoid} (S U : Subset A) :=
+  IsSubsetEquiv (SubsetIntersection S U) EmptySubset.
+
+
+Lemma SubsetSubstractDisjoint {A : Setoid} (S U : Subset A):
+  IsSubsetDisjoint S (SubsetSubstract U S).
+unfold IsSubsetDisjoint.
+unfold IsSubsetEquiv. split.
+- unfold IsSubsetOf. intros.
+  apply BetaSubsetMembership in X. simpl in X. destruct X.
+  apply BetaSubsetMembership in i0. simpl in i0. destruct i0.
+  contradiction.
+- unfold IsSubsetOf. intros.
+  apply BetaSubsetMembership. simpl. split.
+  + destruct X. simpl in x. destruct x. contradiction.
+  + apply BetaSubsetMembership. simpl. split.
+    * destruct X. simpl in x. destruct x. contradiction.
+    * destruct X. simpl in x. destruct x. contradiction.
+Defined.
+
+Lemma SubsetUnionFactor  {A : Setoid} (S U : Subset A)
+  (p : IsSubsetDecidable S):
+  IsSubsetEquiv (SubsetUnion S U) (SubsetUnion S (SubsetSubstract U S)).
+unfold IsSubsetEquiv. split.
+- unfold IsSubsetOf. intros.
+  apply BetaSubsetMembership in X. simpl in X.
+  apply BetaSubsetMembership. simpl.
+  unfold IsSubsetDecidable in p. destruct (p a).
+  + left. assumption.
+  + destruct X.
+    * contradiction.
+    * right. apply BetaSubsetMembership. simpl. split; assumption.
+- unfold IsSubsetOf. intros.
+  apply BetaSubsetMembership in X. simpl in X.
+  apply BetaSubsetMembership. simpl.
+  destruct X.
+  + left; assumption.
+  + apply BetaSubsetMembership in i. simpl in i. destruct i.
+    right; assumption.
+Defined.
+
+
+Lemma LessThanTransitive :
+  forall m u n, LessThan m u -> LessThan u n -> LessThan m n.
+unfold LessThan. intros. apply (LessThanOrEqualTransitive (S m) u n).
+assumption. apply LessThanOrEqualSubstract. assumption.
+Defined.
+
+Definition FinSetoidVecEmpty {A : Setoid} : |FinSetoid 0 ==> A|.
+refine (let f := _ : (|FinSetoid 0| -> |A|) in _).
+Unshelve. Focus 2. intro x. destruct x. simpl in p.
+apply LessThanZeroFalse in p. contradiction.
+apply (Build_Function _ _ f).
+intros.
+destruct a. simpl in p. assert (LessThan x 0). assumption. apply LessThanZeroFalse in H.
+contradiction.
+Defined.
+
+Definition FinSetoidVecAppend {A : Setoid} (n : nat) (a : |A|) (f : |FinSetoid n ==> A|):
+  |FinSetoid (S n) ==> A|.
+refine (let g := _ : (|FinSetoid (S n)|) -> (|A|) in _).
+Unshelve. Focus 2.
+intro x. destruct x. simpl in p.
+destruct (LessThanDecidable x n).
+- apply (f ` (NatToFinSetoid x l)).
+Focus 2. apply a.
+apply (Build_Function _ _ g).
+intros.
+destruct a0. destruct b. simpl in *.
+rewrite X.
+setoid_refl A.
+Defined.
+
+
+Definition PreFinSetoidVecCons {A : Setoid} (n : nat) (a : |A|) (f : |FinSetoid n ==> A|):
+  |FinSetoid (S n)| -> | A|.
+intro x. destruct x. simpl in p.
+destruct x.
+- apply a. (* if x = 0 *)
+- assert (LessThan x n). apply LessThanOrEqualPreservedBySucc in p. assumption.
+  apply (f ` (NatToFinSetoid x H)).
+Defined.
+
+Definition FinSetoidVecCons {A : Setoid} (n : nat) (a : |A|) (f : |FinSetoid n ==> A|):
+  |FinSetoid (S n) ==> A|.
+apply (Build_Function _ _ (PreFinSetoidVecCons n a f)).
+intros.
+destruct a0. destruct b.
+simpl in p. simpl in p0. simpl in X.
+destruct x.
+  - destruct x0. 
+    + simpl. setoid_refl A.
+    + discriminate X.
+  - destruct x0.
+    + discriminate X.
+    + simpl. apply (Function_MapIsExtensional _ _). simpl.
+      injection X. intuition.
+Defined.
+
+Definition FinSetoidVecHead {A : Setoid} (n : nat) (f : |FinSetoid (S n) ==> A|): |A|.
+assert (LessThan 0 (S n)). unfold LessThan.
+apply (LessThanOrEqualPreservedBySucc 0 n).
+apply ZeroIsTheLeast.
+apply (f ` (NatToFinSetoid 0 H)).
+Defined.
+
+Definition FinSetoidVecTail {A : Setoid} (n : nat) (f : |FinSetoid (S n) ==> A|):
+  |FinSetoid n ==> A|.
+refine (let g := _ : (|FinSetoid n| -> |A|) in _).
+Unshelve. Focus 2.
+intro x. destruct x. simpl in p.
+assert (LessThan (S x) (S n)) as H.
+apply LessThanOrEqualPreservedBySucc in p. assumption.
+apply (f ` (NatToFinSetoid (S x) H)). (* f (x + 1) *)
+apply (Build_Function _ _ g).
+intros.
+destruct a. destruct b. simpl in p. simpl in p0. simpl in X.
+apply (Function_MapIsExtensional _ _). simpl.
+rewrite X. reflexivity.
+Defined.
+
+Lemma FinSetoidVecElim {A : Setoid} (n : nat) (f : |FinSetoid (S n) ==> A|):
+  f ==[_] FinSetoidVecCons n (FinSetoidVecHead n f) (FinSetoidVecTail n f).
+simpl. unfold FunctionEquivalence.
+intros.
+destruct a. simpl in p.
+destruct x.
+- simpl. unfold FinSetoidVecHead. apply (Function_MapIsExtensional _ _).
+  simpl. reflexivity.
+- simpl. apply (Function_MapIsExtensional _ _). simpl. reflexivity.
+Defined.
+
+Definition FinSetoidVecFold 
+  {A : Setoid} (n : nat) (f : |FinSetoid n ==> A|)
+  (B : Type) (base : B) (acc : |A| -> B -> B): B.
+induction n.
+- apply base.
+- apply (acc (FinSetoidVecHead n f) (IHn (FinSetoidVecTail n f))).
+Defined.
+
+
+Definition FinSetoidVecToList {A : Setoid} (n : nat) (f : |FinSetoid n ==> A|) :
+  (list (|A|)) :=
+FinSetoidVecFold n f (list (|A|)) nil (fun a l => cons a l).
+
+
+Definition FinSetoidVecCount
+  {A : Setoid} (n : nat) (f : |FinSetoid n ==> A|)
+  (P : Property A) (p: DecidableProperty P): nat.
+apply (FinSetoidVecFold n f nat).
+- apply 0.
+- intros a x. destruct (p a).
+  + apply (S x).
+  + apply x.
+Defined.
+
+
+Definition FinSetoidVecFilter
+  {A : Setoid} (n : nat) (f : |FinSetoid n ==> A|)
+  (P : Property A) (p: DecidableProperty P):
+  |FinSetoid (FinSetoidVecCount n f P p) ==> A|.
+induction n.
+- simpl. apply f.
+- simpl. destruct (p ( FinSetoidVecHead n f)).
+  + specialize (IHn (FinSetoidVecTail n f)).
+    apply (FinSetoidVecCons (FinSetoidVecCount n (FinSetoidVecTail n f) P p) ( FinSetoidVecHead n f) IHn).
+  + specialize (IHn (FinSetoidVecTail n f)).
+    apply IHn.
+Defined.
+
+Lemma FinSetoidVecTailId {A : Setoid} (n: nat) (f : |FinSetoid n ==> A|) (a :|A|):
+  FinSetoidVecTail n (FinSetoidVecCons n a f) ==[_] f.
+simpl. unfold FunctionEquivalence. intros.
+destruct a0. simpl in p.
+simpl. apply (Function_MapIsExtensional _ _).
+simpl. reflexivity.
+Defined.
+
+
+
+Definition FinSetoidVecFiniteProp
+  {A : Setoid} (n : nat) (f : |FinSetoid (S n) ==> A|)
+  (P : Property A):
+  Property_Prop _ P (FinSetoidVecHead n f) ->
+  (forall j : |FinSetoid n|, Property_Prop _ P (FinSetoidVecTail n f ` j)) ->
+  (forall i : |FinSetoid (S n)|, Property_Prop _ P (f ` i)).
+intros.
+destruct i as [i il].
+simpl. simpl in il.
+destruct i.
+- apply (Property_PropIsExtensional _ P
+    (FinSetoidVecHead n f)
+    ((f ` existT (fun x : nat => LessThan x (S n)) 0 il))).
+  + unfold FinSetoidVecHead. apply (Function_MapIsExtensional _ _).
+    simpl. reflexivity.
+  + apply X.
+- assert (LessThan i n). apply LessThanOrEqualPreservedBySucc. assumption.
+  specialize (X0 (NatToFinSetoid i H)).
+  apply (Property_PropIsExtensional _ P
+    (FinSetoidVecTail n f ` NatToFinSetoid i H)
+    (f ` existT (fun x : nat => LessThan x (S n)) (S i) il)).
+  + simpl. apply (Function_MapIsExtensional _ _). simpl. reflexivity.
+  + apply X0.
+Defined.
+
+Definition FinSetoidVecFilterProp
+  {A : Setoid} (n : nat) (f : |FinSetoid n ==> A|)
+  (P : Property A) (p: DecidableProperty P):
+  forall i : |FinSetoid (FinSetoidVecCount n f P p)|,
+  Property_Prop _ P ((FinSetoidVecFilter n f P p) ` i).
+induction n.
+- simpl. intros. destruct i.  
+  assert (LessThan x 0). assumption.
+  apply LessThanZeroFalse in H. contradiction.
+- simpl. destruct (p ( FinSetoidVecHead n f)).
+  + specialize (IHn (FinSetoidVecTail n f)).
+    apply FinSetoidVecFiniteProp. 
+    * simpl. assumption.
+    * intros. specialize (IHn j).
+      apply (Property_PropIsExtensional _ P ((FinSetoidVecFilter n (FinSetoidVecTail n f) P p ` j))).
+      setoid_symm A.
+      apply FinSetoidVecTailId. assumption.
+  + specialize (IHn (FinSetoidVecTail n f)).
+    apply IHn.
+Defined.
+
+(*
+Definition FinSetoidVecFilter2
+  {A : Setoid} (n : nat) (f : |FinSetoid n ==> A|)
+  (P : Property A) (p: DecidableProperty P):
+  sigma vec : |FinSetoid (FinSetoidVecCount n f P p) ==> A|,
+  forall i : |FinSetoid (FinSetoidVecCount n f P p)|,
+  Property_Prop _ P (vec ` i).
+induction n.
+- simpl. exists f. intros. destruct i.  
+  assert (LessThan x 0). assumption.
+  apply LessThanZeroFalse in H. contradiction.
+- simpl. destruct (p ( FinSetoidVecHead n f)).
+  + specialize (IHn (FinSetoidVecTail n f)).
+    destruct IHn as [IHvec IHprop].
+    exists (FinSetoidVecCons (FinSetoidVecCount n (FinSetoidVecTail n f) P p) 
+            ( FinSetoidVecHead n f) IHvec).
+    apply FinSetoidVecFiniteProp. 
+    * simpl. assumption.
+    * intros. specialize (IHprop j).
+      apply (Property_PropIsExtensional _ P (IHvec ` j)).
+      setoid_symm A.
+      apply FinSetoidVecTailId. assumption.
+  + specialize (IHn (FinSetoidVecTail n f)).
+    apply IHn.
+Defined.
+*)
+
+
+Definition FinSetoidVecSingleton {A : Setoid} (a : |A|):
+  |FinSetoid 1 ==> A| := FinSetoidVecCons 0 a (FinSetoidVecEmpty).
+
+
+Definition MyList :=
+  @FinSetoidVecCons NatSetoid 2 (11) 
+  (@FinSetoidVecCons NatSetoid 1 (22) 
+  (@FinSetoidVecCons NatSetoid 0 (33) FinSetoidVecEmpty)).
+
+Eval compute in (FinSetoidVecToList _ MyList).
+
+Definition IsMemberOfSubsetProperty {A : Setoid} (S : Subset A) : Property A.
+apply (Build_Property A (fun a => a ::[A] S)).
+apply SubsetIsMemberOfTransport.
+Defined.
+
+Definition IsMemberOfSubsetPropertyDecidable {A : Setoid} (S : Subset A)
+  (p : IsSetoidDiscrete A) (q : IsSubsetFinite S):
+  DecidableProperty (IsMemberOfSubsetProperty S).
+unfold DecidableProperty.
+intros. simpl.
+apply FiniteSubsetMembershipDecidable; assumption.
+Defined.
+
+Definition NegateDecidableProperty {A : Setoid}
+  (P : Property A) : Property A.
+apply (Build_Property A (fun a => not (Property_Prop _ P a))).
+intros. apply X0.
+apply (Property_PropIsExtensional _ _ b a).
+setoid_symm A. assumption. assumption.
+Defined.
+
+Definition NegateDecidablePropertyDecidable {A : Setoid}
+  (P : Property A) (p : DecidableProperty P): DecidableProperty (NegateDecidableProperty P).
+unfold DecidableProperty in *.
+intros. unfold Decidable in *. simpl.
+destruct (p a).
+- right. intros. contradiction.
+- left. assumption.
+Defined.
+
+Definition NotMemberOfSubsetProp {A : Setoid} (S: Subset A) : Property A :=
+  NegateDecidableProperty (IsMemberOfSubsetProperty S).
+
+Definition NotMemberOfSubsetPropDec {A : Setoid} (S: Subset A)
+  (p : IsSubsetFinite S) (w : IsSetoidDiscrete A):
+  DecidableProperty (NotMemberOfSubsetProp S).
+apply NegateDecidablePropertyDecidable.
+apply IsMemberOfSubsetPropertyDecidable; assumption.
+Defined.
+
+Definition IsMemberOfSubsetProperty2 {A : Setoid} (S U: Subset A) : Property (Subset_Setoid A S).
+apply (Build_Property _ (fun a => (Subset_Injection A S ` a) ::[A] U)).
+intros.
+unfold IsMemberOfSubset in *. destruct X0.
+exists x.
+setoid_symm A. apply (FunctionCong a b). assumption.
+setoid_symm A. assumption.
+Defined.
+
+Lemma IsMemberOfSubsetProperty2Decidable {A : Setoid} (S U: Subset A)
+  (p : IsSetoidDiscrete A) (q : IsSubsetFinite S) (r : IsSubsetFinite U):
+  DecidableProperty (IsMemberOfSubsetProperty2 S U).
+unfold DecidableProperty. intros.
+simpl. apply FiniteSubsetMembershipDecidable; assumption.
+Defined.
+
+Definition NotMemberOfSubsetProp2 {A : Setoid} (S U: Subset A) : Property (Subset_Setoid A S) :=
+  NegateDecidableProperty (IsMemberOfSubsetProperty2 S U).
+
+Definition NotMemberOfSubsetPropDec2 {A : Setoid} (S U: Subset A)
+  (p : IsSubsetFinite S) (r : IsSubsetFinite U) (w : IsSetoidDiscrete A):
+  DecidableProperty (NotMemberOfSubsetProp2 S U).
+apply NegateDecidablePropertyDecidable.
+apply IsMemberOfSubsetProperty2Decidable; assumption.
+Defined.
+
+(* 
+Definition Injectttt {A : Setoid} (S U : Subset A) (p : IsSubsetFinite S) (q: IsSubsetFinite U)
+  (w : IsSetoidDiscrete A):
+  |Subset_Setoid A S ==> Subset_Setoid A (SubsetSubstract S U)|.
+refine (let f := _ : (|Subset_Setoid A S| -> |Subset_Setoid A (SubsetSubstract S U)|) in _ ).
+Unshelve. Focus 2.
+intro x.
+destruct (FiniteSubsetMembershipDecidable w U q (Subset_Injection A S ` x)).
+- simpl. exists ((Subset_Injection A S ` x)). split.
+  unfold IsMemberOfSubset. exists x. setoid_refl A.
+  intros.
+
+split. assumption. *)
+
+Definition FinSetoidVecDistinctEl {A : Setoid} (n : nat) (f : |FinSetoid n ==> A|) :=
+  IsInjection f.
+
+Print list_ind.
+
+Lemma FinSetoidVecEmptyUnique {A : Setoid}:
+  forall f : |FinSetoid 0 ==> A|, f ==[_] FinSetoidVecEmpty.
+intros. simpl. unfold FunctionEquivalence.
+intros. simpl in a. destruct a.
+assert (LessThan x 0). assumption.
+apply LessThanZeroFalse in H.
+contradiction.
+Defined.
+
+Lemma FinSetoidVecInduction {A : Setoid}
+  (P : forall n, |FinSetoid n ==> A| -> Type)
+  (Pext : forall n a b, a ==[FinSetoid n ==> A] b -> P n a -> P n b)
+  (base : P 0 FinSetoidVecEmpty)
+  (succ : forall a n, forall f : |FinSetoid n ==> A|, P n f -> 
+    P (S n) (FinSetoidVecCons n a f)):
+  forall n, forall f : |FinSetoid n ==> A|, P n f.
+intros.
+induction n.
+- apply (Pext _ FinSetoidVecEmpty f). setoid_symm (FinSetoid 0 ==> A).
+  apply FinSetoidVecEmptyUnique. apply base.
+- pose (elim := FinSetoidVecElim _ f).
+  apply (Pext _ (FinSetoidVecCons n (FinSetoidVecHead n f)
+                            (FinSetoidVecTail n f)) f).
+  setoid_symm (FinSetoid (S n) ==> A). assumption.
+  apply succ.
+  apply IHn.
+Defined.
+
+Lemma IsInjectionExtensional {A B : Setoid} 
+  (f g : |A ==> B|) (eq : f ==[_] g) (p : IsInjection f): IsInjection g.
+unfold IsInjection in *.
+intros.
+apply (p a b).
+simpl in eq. unfold FunctionEquivalence in eq.
+assert (f ` a ==[_] g ` a). apply (eq  a).
+assert (f ` b ==[_] g ` b). apply (eq b).
+pose (LHS := f ` a).
+assert (LHS ==[_] g ` a). assumption.
+assert (LHS ==[_] g ` b). setoid_tran B (g ` a). assumption. assumption.
+assert (LHS ==[_] f ` b). setoid_tran B (g ` b). assumption. setoid_symm B. assumption.
+assumption.
+Defined.
+
+
+Definition IsPropExtensional {A : Setoid} (P : |A| -> Type) :=
+  forall a b, a ==[A] b -> P a -> P b.
+
+
+Lemma FinSetoidVecHeadExtensional {A : Setoid} (n : nat)
+  (f g : | FinSetoid (S n) ==> A|) (eq: f ==[_] g):
+  FinSetoidVecHead n f ==[A] FinSetoidVecHead n g.
+unfold FinSetoidVecHead. apply eq.
+Defined.
+
+Lemma FinSetoidVecTailExtensional {A : Setoid} (n : nat)
+  (f g : | FinSetoid (S n) ==> A|) (eq: f ==[_] g):
+  FinSetoidVecTail n f ==[FinSetoid n ==> A] FinSetoidVecTail n g.
+
+
+
+unfold FinSetoidVecTail. unfold FunctionEquivalence. simpl.
+unfold FunctionEquivalence.
+
+
+Lemma FinSetoidVecCountExtensional {A : Setoid}
+  (n : nat)  (P : Property A) (Pdec: DecidableProperty P) (f g : |FinSetoid n ==> A|)
+  (eq : f ==[_] g) :
+  (FinSetoidVecCount n f P Pdec) ==[NatSetoid] (FinSetoidVecCount n g P Pdec).
+simpl.
+induction n.
+- simpl. reflexivity.
+- simpl.
+
+
+Lemma xxx {A : Setoid} (n : nat) (f : |FinSetoid n ==> A|) (p : IsInjection f)
+  (P : Property A) (Pdec: DecidableProperty P):
+  IsInjection (FinSetoidVecFilter n f P Pdec).
+apply (FinSetoidVecInduction (fun n f => IsInjection (FinSetoidVecFilter n f P Pdec))).
+- intros.
+  assert ((FinSetoidVecCount n0 a P Pdec) == (FinSetoidVecCount n0 b P Pdec)).
+  + unfold FinSetoidVecCount.
+
+apply (IsInjectionExtensional (FinSetoidVecFilter n0 a P Pdec) (FinSetoidVecFilter n0 b P Pdec)).
+
+ intros. unfold IsInjection in *.
+  intros. specialize (X0 a0 b0).
+
+ simpl. simpl in X.
+unfold IsInjection in *.
+generalize n f p.
+apply (@FinSetoidVecInduction A).
+intros.
+induction n.
+- simpl in X. apply p. assumption.
+- destruct (Pdec (FinSetoidVecHead n f)).
+  + specialize (IHn (FinSetoidVecTail n f)).
+
+ simpl in X.
+destruct a.
+simpl in X.
+
+
+Definition Injectt {A : Setoid} (S U : Subset A)
+  (n : nat) (f : |FinSetoid n ==> Subset_Setoid A S|)
+  (p : forall i : |FinSetoid n|, Property_Prop _ (NotMemberOfSubsetProp2 S U) (f ` i)):
+  (|FinSetoid n ==> Subset_Setoid A (SubsetSubstract S U)|).
+refine (let v := _ : (|FinSetoid n| -> |Subset_Setoid A (SubsetSubstract S U)|) in _).
+Unshelve. Focus 2.
+intro x.
+specialize (p x). simpl in p.
+simpl.
+exists (Subset_Injection A S ` (f ` x)). split.
+- unfold IsMemberOfSubset. exists ((f ` x)). setoid_refl A.
+Unshelve. Focus 2. assumption.
+apply (Build_Function _ _ v).
+intros. simpl.
+apply (Function_MapIsExtensional _ _).
+apply (Function_MapIsExtensional _ _).
+assumption.
+Defined.
+
+
+Definition SubsetSubstractIsFinite {A : Setoid}
+  (S U : Subset A) (p : IsSubsetFinite S) (q: IsSubsetFinite U)
+  (w : IsSetoidDiscrete A) :
+  IsSubsetFinite (SubsetSubstract S U).
+(* pose (P := NotMemberOfSubsetProp U).
+pose (Pdec := NotMemberOfSubsetPropDec U q w). *)
+unfold IsSubsetFinite in *. unfold IsSetoidFinite in *.
+(* destruct p as [n f]. destruct f as [f fbij]. *)
+elim p. intros n p0. elim p0. intros f fbij.
+
+pose (finv := (BijectionInversion f fbij)).
+pose (P := (NotMemberOfSubsetProp2 S U)).
+pose (Pdec := (NotMemberOfSubsetPropDec2 S U p q w)).
+pose (cnt := FinSetoidVecCount n finv P Pdec).
+
+exists ( cnt ).
+
+pose (h := FinSetoidVecFilter n finv P Pdec).
+pose (hprop := FinSetoidVecFilterProp n finv P Pdec).
+pose (k := Injectt S U cnt h hprop).
+
+assert (IsBijection k).
+split.
+- unfold IsInjection. intros. unfold k in X. simpl in X.
+  apply (Subset_InjectionIsInjection _ _) in X.
+  unfold h in X.
+  unfold finv in X. unfold P in X. unfold Pdec in X.
+  destruct a. destruct b. simpl in p1. simpl in p2. simpl in X. simpl.
+  induction x. induction x0. reflexivity.
+  unfold FinSetoidVecFilter in X. simpl in X.
+
+
+  destruct x. destruct x0.  reflexivity. simpl in X.
+  unfold FinSetoidVecFilter in X.
+
+
+
+Definition PreFinSetoidVecDelete {A : Setoid} (n : nat) 
+  (i : |FinSetoid n|)
+  (f : |FinSetoid n ==> A|):
+  (|FinSetoid (pred n)| -> | A|).
+intro x. destruct i as [i il]. simpl in il.
+destruct x as [x xl]. simpl in xl.
+destruct (LessThanDecidable x i) as [lxi | nlxi].
+- apply (f ` (NatToFinSetoid x (LessThanTransitive x i n lxi il))).
+- assert (LessThan (S x) n). 
+  + destruct n.
+    * simpl in xl. apply LessThanZeroFalse in xl. contradiction.
+    * simpl in xl. apply LessThanOrEqualPreservedBySucc in xl. assumption.
+  + apply (f ` (NatToFinSetoid (S x) H)).
+Defined.
+
+
+Definition FinSetoidVecDelete {A : Setoid} (n : nat) (i : |FinSetoid n|)
+  (f : |FinSetoid n ==> A|):
+  (|FinSetoid (pred n) ==> A|).
+apply (Build_Function _ _ (PreFinSetoidVecDelete n i f)).
+intros.
+destruct a. simpl in p.
+destruct b. simpl in p0. simpl in X.
+simpl.
+unfold PreFinSetoidVecDelete.
+destruct i as [i li]. simpl in li. 
+destruct (LessThanDecidable x i).
+- destruct (LessThanDecidable x0 i).
+  + apply (Function_MapIsExtensional _ _). simpl. assumption.
+  + apply (Function_MapIsExtensional _ _). simpl.
+    rewrite <- X in e. contradiction.
+- destruct (LessThanDecidable x0 i).
+  + apply (Function_MapIsExtensional _ _). simpl.
+    rewrite <- X in l. contradiction.
+  + apply (Function_MapIsExtensional _ _). simpl. rewrite X. reflexivity.
+Defined.
+
+Lemma SubsetUnionJoinLeft {A: Setoid} (S U : Subset A):
+  IsSubsetOf S (SubsetUnion S U).
+unfold IsSubsetOf. intros.
+apply BetaSubsetMembership. simpl.
+left. assumption.
+Defined.
+
+Lemma SubsetUnionJoinRight {A: Setoid} (S U : Subset A):
+  IsSubsetOf U (SubsetUnion S U).
+unfold IsSubsetOf. intros.
+apply BetaSubsetMembership. simpl.
+right. assumption.
+Defined.
+
+Lemma SubsetUnionJoinLeast{A: Setoid} (S U : Subset A):
+  forall W, IsSubsetOf S W -> IsSubsetOf U W -> IsSubsetOf (SubsetUnion S U) W.
+unfold IsSubsetOf. intros.
+apply BetaSubsetMembership in X1. simpl in X1.
+destruct X1; intuition.
+Defined.
+
+
+
+
+Lemma LessThanDec:
+  forall m n, LessThan (S m) n -> LessThan m n.
+unfold LessThan. intros. apply LessThanOrEqualSubstract. assumption.
+Defined.
+
+
+Definition CountPred {A : Setoid} (n : nat) 
+  (f : |FinSetoid n ==> A|)
+  (pred : Property A) (p: DecidableProperty pred): nat.
+unfold DecidableProperty in p.
+destruct (LargestNumberLessThan n).
+- destruct s. induction x.
+  + destruct (p (f ` NatToFinSetoid 0 l)).
+    * apply 1.
+    * apply 0.
+  + destruct (p (f ` NatToFinSetoid x (LessThanDec x n l))).
+    * apply (S (IHx (LessThanDec x n l))).
+    * apply ((IHx (LessThanDec x n l))).
+- apply 0.
+Defined.
+
+
+Definition FinSetoidVecFilter {A : Setoid} (n : nat) (f : |FinSetoid n ==> A|)
+  (pred : Property A) 
+  (p: DecidableProperty pred): |FinSetoid (CountPred n f pred p) ==> A|.
+
+Lemma X:
+  IsSubsetEquiv 
+    (SubsetUnion S U)
+    (SubsetUn)
+
+
 (*
 Definition PreNumberOfSharedElements
   (q : IsSetoidDiscrete A)
